@@ -1,0 +1,9 @@
+node_modules/
+*.blend1
+/artifacts/tmp/
+.DS_Store
+__pycache__/
+.venv-blender/
+dist/blank.html
+/artifacts/house-architecture.glb
+/artifacts/export-check.png
