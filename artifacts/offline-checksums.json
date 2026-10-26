@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-26T22:44:09.208Z",
+  "three": "0.183.2",
+  "html": {
+    "path": "offline/VSEMDOM.html",
+    "bytes": 7324290,
+    "sha256": "98099843930e3e0220bec109539b4338a0336dce20b17f4b59c0f11df456c349"
+  },
+  "zip": {
+    "path": "artifacts/VSEMDOM-local.zip",
+    "bytes": 4860338,
+    "sha256": "a3f29cf516527a92e42959a2c4fc891c30c56d94986b877934b09f9f36a6ad3f"
+  },
+  "htmlInZipIdentical": true,
+  "embeddedAssets": 39,
+  "jsBytes": 1111860
+}

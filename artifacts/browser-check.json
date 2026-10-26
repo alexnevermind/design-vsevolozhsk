@@ -1,0 +1,498 @@
+{
+  "date": "2026-10-26T23:08:50.198Z",
+  "environment": "Chromium 153.0.8010.12 headless, программный WebGL (SwiftShader) — это не измерение пользовательской видеокарты; сенсорный ввод — эмуляция CDP",
+  "durationSec": 1397,
+  "passed": 88,
+  "failed": 0,
+  "consoleErrors": [],
+  "results": [
+    {
+      "scenario": "startup",
+      "name": "Начальный проект: 23 предмета нового дома",
+      "ok": true,
+      "note": "23"
+    },
+    {
+      "scenario": "startup",
+      "name": "Восемь зон с номерами и площадями",
+      "ok": true,
+      "note": "001:6.1 002:9.8 003:9.8 004:4.1 005:33.2 006:4.5 007:4.5 008:20"
+    },
+    {
+      "scenario": "startup",
+      "name": "Подпись площади дома и террасы",
+      "ok": true,
+      "note": "Дом 72,0 м² · терраса 20,0 м²"
+    },
+    {
+      "scenario": "startup",
+      "name": "Фасадный ракурс при старте (FOV 33°)",
+      "ok": true,
+      "note": "{\"position\":[22.300000000000004,4.399999999999997,26.999999999999993],\"target\":[1.5999999999999999,0.7999999999999999,0],\"fov\":33}"
+    },
+    {
+      "scenario": "startup",
+      "name": "Остановившаяся сцена не перерисовывается непрерывно",
+      "ok": true,
+      "note": "кадров за 2,5 с: 0"
+    },
+    {
+      "scenario": "facade",
+      "name": "«Весь дом одним цветом» — четыре фасада и навес одним действием",
+      "ok": true,
+      "note": "history 0→1"
+    },
+    {
+      "scenario": "facade",
+      "name": "Материал реальных мешей фасада обновлён",
+      "ok": true,
+      "note": "paintWood|#65413F|true | paintWood|#65413F|true | paintWood|#65413F|true | paintWood|#65413F|true | paintWood|#65413F|true"
+    },
+    {
+      "scenario": "facade",
+      "name": "Undo возвращает исходную схему фасада",
+      "ok": true
+    },
+    {
+      "scenario": "facade",
+      "name": "Redo (Ctrl+Shift+Z) повторяет окраску",
+      "ok": true
+    },
+    {
+      "scenario": "facade",
+      "name": "Семь фасадных оттенков применимы к стороне фасада",
+      "ok": true,
+      "note": "7 образцов"
+    },
+    {
+      "scenario": "facade",
+      "name": "Настил террасы и ступеней: светлый дуб → чёрный ясень",
+      "ok": true,
+      "note": "deck|ash"
+    },
+    {
+      "scenario": "facade",
+      "name": "Тип кровли меняет геометрию покрытия (металлочерепица)",
+      "ok": true
+    },
+    {
+      "scenario": "facade",
+      "name": "Возврат к кликфальцу",
+      "ok": true
+    },
+    {
+      "scenario": "facade",
+      "name": "Превью материала не меняет сохранённое состояние и историю",
+      "ok": true,
+      "note": "превью: paintWood|#BC8647|true"
+    },
+    {
+      "scenario": "interiorFinishes",
+      "name": "Выбор помещения 005 и подпись",
+      "ok": true
+    },
+    {
+      "scenario": "interiorFinishes",
+      "name": "Облицовка стен: горизонтальная",
+      "ok": true
+    },
+    {
+      "scenario": "interiorFinishes",
+      "name": "Облицовка стен: гладкая",
+      "ok": true
+    },
+    {
+      "scenario": "interiorFinishes",
+      "name": "Облицовка стен: вертикальная",
+      "ok": true
+    },
+    {
+      "scenario": "interiorFinishes",
+      "name": "Единый цвет внутренних стен всех помещений",
+      "ok": true,
+      "note": "wall:001=tk-L447 wall:002=tk-L447 wall:003=tk-L447 wall:004=tk-L447 wall:005=tk-L447 wall:006=tk-L447"
+    },
+    {
+      "scenario": "interiorFinishes",
+      "name": "Общий пол дома одним выбором; санузел и терраса сохраняются",
+      "ok": true
+    },
+    {
+      "scenario": "interiorFinishes",
+      "name": "Пол санузла и парной независим",
+      "ok": true
+    },
+    {
+      "scenario": "interiorFinishes",
+      "name": "Двери: серый; потолок: матовый натяжной, оттенок G500",
+      "ok": true
+    },
+    {
+      "scenario": "interiorFinishes",
+      "name": "«Посмотреть изнутри»: прогулка в комнате с взглядом к потолку",
+      "ok": true,
+      "note": "{\"room\":\"005\",\"pitch\":0.62,\"eyeY\":1.6,\"doorMeshes\":139}"
+    },
+    {
+      "scenario": "interiorFinishes",
+      "name": "Возврат к обзору восстанавливает режим «Внутри» и помещение",
+      "ok": true
+    },
+    {
+      "scenario": "furniture",
+      "name": "Каталог: шесть карточек",
+      "ok": true
+    },
+    {
+      "scenario": "furniture",
+      "name": "Клик по карточке добавляет ровно один шкаф с привязкой к стене",
+      "ok": true,
+      "note": "{\"id\":24,\"type\":\"wardrobe\",\"x\":0.85,\"z\":-0.35,\"ry\":0,\"room\":\"005\",\"mats\":{},\"anchor\":{\"wall\":\"kitchen-007\",\"side\":1}}"
+    },
+    {
+      "scenario": "furniture",
+      "name": "Enter на карточке добавляет ровно один предмет",
+      "ok": true
+    },
+    {
+      "scenario": "furniture",
+      "name": "Перенос: подъём ~14 см, колесо поворачивает на 45° без масштабирования камеры",
+      "ok": true,
+      "note": "lift=0.13999999999999999, ry 0→0.7853981633974483"
+    },
+    {
+      "scenario": "furniture",
+      "name": "Escape отменяет перенос: предмет и история прежние",
+      "ok": true
+    },
+    {
+      "scenario": "furniture",
+      "name": "Перенос фиксируется после отпускания (одно действие)",
+      "ok": true,
+      "note": "(3.9,1.575)→(2.6,1.3)"
+    },
+    {
+      "scenario": "furniture",
+      "name": "Точка захвата сохраняется (основание = точка пола + смещение захвата, ±0,25 м с учётом сетки/поиска)",
+      "ok": true,
+      "note": "ожидалось (2.61, 1.29), получено (2.6, 1.3)"
+    },
+    {
+      "scenario": "furniture",
+      "name": "Камера не вращалась во время переноса",
+      "ok": true
+    },
+    {
+      "scenario": "furniture",
+      "name": "Недопустимый сброс (прихожая 004) сохраняет прежнее положение",
+      "ok": true
+    },
+    {
+      "scenario": "furniture",
+      "name": "Вынос за контур дома удаляет предмет",
+      "ok": true
+    },
+    {
+      "scenario": "furniture",
+      "name": "Undo возвращает удалённый предмет",
+      "ok": true
+    },
+    {
+      "scenario": "furniture",
+      "name": "Выбор кликом и поворот кнопкой на 90°",
+      "ok": true,
+      "note": "-1.5707963267948966→0"
+    },
+    {
+      "scenario": "furniture",
+      "name": "Delete удаляет выбранный предмет",
+      "ok": true
+    },
+    {
+      "scenario": "furniture",
+      "name": "Перенос карточки на пол помещения добавляет один предмет",
+      "ok": true
+    },
+    {
+      "scenario": "furniture",
+      "name": "Сброс карточки над интерфейсом не добавляет предмет",
+      "ok": true
+    },
+    {
+      "scenario": "tv",
+      "name": "Телевизор: место на стене помещения (wall, side, u, y) и показ камерой",
+      "ok": true,
+      "note": "{\"id\":24,\"type\":\"tv\",\"wall\":\"south-005\",\"side\":-1,\"u\":5.925000000000001,\"y\":1.05,\"mats\":{}}"
+    },
+    {
+      "scenario": "tv",
+      "name": "Телевизор переносится по стене и по высоте",
+      "ok": true,
+      "note": "u 5.925000000000001→6.425, y 1.05→1.2"
+    },
+    {
+      "scenario": "tv",
+      "name": "Новый телевизор, отпущенный над полом, не добавляется",
+      "ok": true
+    },
+    {
+      "scenario": "walk",
+      "name": "Прогулка начинается у свободной прихожей 004 на высоте глаз 1,60 м",
+      "ok": true,
+      "note": "{\"room\":\"004\",\"eyeY\":1.6}"
+    },
+    {
+      "scenario": "walk",
+      "name": "WASD перемещает человека (через открытую дверь в 005)",
+      "ok": true,
+      "note": "(5.19,-1.05)→(5.19,0.37) 005"
+    },
+    {
+      "scenario": "walk",
+      "name": "S возвращает в прихожую",
+      "ok": true
+    },
+    {
+      "scenario": "walk",
+      "name": "E закрывает/открывает дверь вокруг петли",
+      "ok": true,
+      "note": "90→20"
+    },
+    {
+      "scenario": "walk",
+      "name": "Через закрытую дверь пройти нельзя",
+      "ok": true,
+      "note": "004→004"
+    },
+    {
+      "scenario": "walk",
+      "name": "Escape ставит прогулку на паузу",
+      "ok": true
+    },
+    {
+      "scenario": "walk",
+      "name": "«Продолжить» снимает паузу",
+      "ok": true
+    },
+    {
+      "scenario": "walk",
+      "name": "Перетаскивание мыши поворачивает взгляд (без Pointer Lock)",
+      "ok": true,
+      "note": "3.141592653589793→2.781592653589793"
+    },
+    {
+      "scenario": "walk",
+      "name": "Возврат к обзору восстанавливает режим «Снаружи» и камеру",
+      "ok": true
+    },
+    {
+      "scenario": "touchWalk",
+      "name": "Сенсорный джойстик перемещает человека",
+      "ok": true,
+      "note": "2.30 м"
+    },
+    {
+      "scenario": "touchWalk",
+      "name": "Сенсорное перетаскивание поворачивает взгляд",
+      "ok": true
+    },
+    {
+      "scenario": "touchEditor",
+      "name": "390 px: нет горизонтального переполнения страницы",
+      "ok": true
+    },
+    {
+      "scenario": "touchEditor",
+      "name": "Каталог прокручивается горизонтально пальцем, предмет не добавляется",
+      "ok": true,
+      "note": "scrollLeft 2→238"
+    },
+    {
+      "scenario": "touchEditor",
+      "name": "Вверх из каталога — перенос; второй палец отменяет без добавления",
+      "ok": true,
+      "note": "{\"kind\":\"new\",\"itemId\":24,\"type\":\"bed\",\"x\":0,\"z\":0,\"ry\":0,\"valid\":false,\"reason\":\"Луч не попадает на пол\",\"deleteZone\":false,\"lifted\":0,\"targetSlot\":null,\"materialId\":null}"
+    },
+    {
+      "scenario": "touchEditor",
+      "name": "390 px: основные кнопки доступны",
+      "ok": true
+    },
+    {
+      "scenario": "touchEditor",
+      "name": "390 px: кнопка «Панель» над лентой открывает и закрывает панель",
+      "ok": true,
+      "note": "true/true/true/true"
+    },
+    {
+      "scenario": "touchEditor",
+      "name": "Модальное окно «Двери и потолок» вписывается в экран",
+      "ok": true
+    },
+    {
+      "scenario": "touchEditor",
+      "name": "320 px: без переполнения, основные элементы видимы",
+      "ok": true
+    },
+    {
+      "scenario": "sun",
+      "name": "Четыре превью освещения (утро, день, вечер, ночь)",
+      "ok": true
+    },
+    {
+      "scenario": "sun",
+      "name": "Источник света и расчёт солнца совпадают (10:30, 21.06)",
+      "ok": true,
+      "note": "аз 127.6°, h 45.1°"
+    },
+    {
+      "scenario": "sun",
+      "name": "Север 90° поворачивает направление солнца на 90°",
+      "ok": true,
+      "note": "90.0°"
+    },
+    {
+      "scenario": "sun",
+      "name": "Дата 21.12 даёт низкое зимнее солнце",
+      "ok": true,
+      "note": "1.4°"
+    },
+    {
+      "scenario": "sun",
+      "name": "Ночь: дневной свет выключен, светильники включены",
+      "ok": true,
+      "note": "day 0.00, lamp 1.00"
+    },
+    {
+      "scenario": "sun",
+      "name": "Отключение светильников",
+      "ok": true
+    },
+    {
+      "scenario": "persistence",
+      "name": "Ссылка содержит #r=1.<base64url>",
+      "ok": true,
+      "note": "4383 символов"
+    },
+    {
+      "scenario": "persistence",
+      "name": "Ссылка восстанавливает материалы, удаления, кровлю, потолок, двери",
+      "ok": true
+    },
+    {
+      "scenario": "persistence",
+      "name": "localStorage восстанавливает проект после перезагрузки",
+      "ok": true
+    },
+    {
+      "scenario": "persistence",
+      "name": "Непригодная ссылка: понятное сообщение, загружено локальное сохранение",
+      "ok": true,
+      "note": "Ссылка повреждена: в ссылке нет читаемой конфигурации (возможно, она скопирована не полностью)"
+    },
+    {
+      "scenario": "persistence",
+      "name": "Непригодная ссылка в открытой вкладке: сообщение, проект не изменён",
+      "ok": true,
+      "note": "Ссылка повреждена: в ссылке нет читаемой конфигурации (возможно, она скопирована не полностью). Текущий проект сохранён."
+    },
+    {
+      "scenario": "persistence",
+      "name": "Пригодная ссылка в открытой вкладке: применена одним действием, отменяется",
+      "ok": true,
+      "note": "история 0→1"
+    },
+    {
+      "scenario": "persistence",
+      "name": "Непригодное сохранение: новый проект и резервная копия текста",
+      "ok": true
+    },
+    {
+      "scenario": "persistence",
+      "name": "Экспорт PNG 1800 × 1120",
+      "ok": true,
+      "note": "1800×1120, 4670366 байт"
+    },
+    {
+      "scenario": "site",
+      "name": "Мангальная зона: площадка из плитняка построена, днём (авто) костёр не горит",
+      "ok": true,
+      "note": "{\"k\":0,\"animating\":false,\"stones\":129,\"mode\":\"auto\",\"flames\":false}"
+    },
+    {
+      "scenario": "site",
+      "name": "«Костёр: горит» — одно действие истории, пламя видно",
+      "ok": true,
+      "note": "history 0→1"
+    },
+    {
+      "scenario": "site",
+      "name": "Горящий костёр в кадре анимируется (кадры запрашиваются непрерывно, время пламени идёт)",
+      "ok": true,
+      "note": "{\"frames\":5,\"dt\":12.3,\"animating\":true}"
+    },
+    {
+      "scenario": "site",
+      "name": "Костёр вне кадра — сцена не перерисовывается",
+      "ok": true,
+      "note": "{\"frames\":0,\"animating\":false}"
+    },
+    {
+      "scenario": "site",
+      "name": "Кнопка «Показать зону» наводит камеру на мангальную зону",
+      "ok": true,
+      "note": "цель 11.6, -0.1, 10.4"
+    },
+    {
+      "scenario": "site",
+      "name": "Ночь (авто): костёр горит, активны точечные источники (костёр, угли, гирлянда, столбики)",
+      "ok": true,
+      "note": "огонь 1.00, источников 9"
+    },
+    {
+      "scenario": "site",
+      "name": "«Костёр: погашен» гасит пламя и ночью",
+      "ok": true
+    },
+    {
+      "scenario": "site",
+      "name": "Лучи солнца в окнах: видны только в прогулке, есть грани от окон на солнечной стороне",
+      "ok": true,
+      "note": "{\"visible\":false,\"faces\":16} → {\"visible\":true,\"faces\":16}"
+    },
+    {
+      "scenario": "geometryLive",
+      "name": "Габариты моделей мебели совпадают с каталогом (±2,5 мм)",
+      "ok": true,
+      "note": "bed 1.46×2.08, bedSingle 0.96×1.98, desk 1.2×0.6, chair 0.4799×0.4996, wardrobe 0.8×0.6, kitchenHob 0.825×0.68, kitchenCabinet 0.825×0.68, kitchenSink 0.925×0.68, fridge 0.52×0.64, sofa 1.9×0.85, coffee 0.8×0.5, mediaUnit 1.8×0.42, dining 1.2×0.75, toilet 0.3996×0.6494, shower 0.91×0.93, vanity 0.72×0.48, washer 0.6×0.64"
+    },
+    {
+      "scenario": "geometryLive",
+      "name": "Высоты потолка 2,70 под коньком и 2,30 у стен",
+      "ok": true
+    },
+    {
+      "scenario": "geometryLive",
+      "name": "Кровля непрозрачна: opacity=1, transmission=0, запись глубины",
+      "ok": true
+    },
+    {
+      "scenario": "geometryLive",
+      "name": "Пол без щелей: стыки помещений закрыты порогами (лучи сверху, сетка 4 см)",
+      "ok": true,
+      "note": "50531 лучей, щелей 0"
+    },
+    {
+      "scenario": "geometryLive",
+      "name": "Выбор помещения и поворот камеры не меняют разрез стен",
+      "ok": true,
+      "note": "62/62/62"
+    },
+    {
+      "scenario": "geometryLive",
+      "name": "При разрезе нет висящих деталей: навесные части и фасадные светильники скрыты",
+      "ok": true,
+      "note": "{\"shown\":[],\"lamps\":false}"
+    }
+  ]
+}

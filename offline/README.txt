@@ -11,4 +11,4 @@ VSEMDOM.COM — автономная версия конфигуратора д�
 
 Состав: VSEMDOM.html (код, стили, Three.js 0.183.2, геометрия, карты, модель), README.txt,
 THREE-LICENSE.txt, THIRD-PARTY-LICENSES.txt, SHA256SUMS.txt.
-Сборка: 2026-10-24, npm run package:offline.
+Сборка: 2026-10-26, npm run package:offline.
