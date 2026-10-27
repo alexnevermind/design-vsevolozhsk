@@ -24,6 +24,17 @@ import { buildSiteTrees } from './site-trees.js';
 import { buildSiteLandscape } from './site-landscape.js';
 import { SiteUI } from './site-ui.js';
 import { SiteWalk } from './site-walk.js';
+import { buildSiteFurniture } from './site-furniture.js';
+import { buildSiteLights } from './site-lights.js';
+import { INTERIOR } from './site-arch.js';
+import { WL_UNIFORMS } from './window-light.js';
+import { FurnitureEditor, ROOMS } from './site-edit.js';
+
+// Рассеянный свет окон базы (дом VSEMDOM) на участке не используется: его прямоугольники помещений
+// в мировых координатах легли бы на постройки участка.
+WL_UNIFORMS.uWLRectCount.value = 0;
+WL_UNIFORMS.uWLWinCount.value = 0;
+WL_UNIFORMS.uWLLampCount.value = 0;
 
 // GTAO без прозрачного стекла и карточек хвои; видимость возвращается после прохода.
 class SceneGTAOPass extends GTAOPass {
@@ -233,8 +244,15 @@ const openings = Object.values(buildings.userData.parts).flatMap((p) => p.openin
 const landscape = buildSiteLandscape(lib, { quality: veg.detail === 'far' ? 'low' : 'high', grassCount: veg.grassCount, openings });
 scene.add(landscape);
 app.landscape = landscape;
-const fires = landscape.userData.fires;
+const parts = buildings.userData.parts;
+const furniture = buildSiteFurniture(lib, parts, { ceilAt: (bid, x, z, level) => parts[bid].ceilAt(x, z, level), quality: veg.detail === 'far' ? 'low' : 'high' });
+app.furniture = furniture.items;
+for (const f of furniture.fires) scene.add(f.group);
+const fires = [...landscape.userData.fires, ...furniture.fires];
 app.fires = fires;
+const siteLights = buildSiteLights(lib, parts);
+scene.add(siteLights.group);
+app.siteLights = siteLights;
 // Газон с хвойной подстилкой под кронами (деревья участка и фоновый лес).
 const litter = [
   ...trees.userData.planned.map((t) => ({ x: t.x, z: t.z, rad: Math.max(1.1, t.crown * 0.5), k: t.species === 'birch' ? 0.2 : 0.45 })),
@@ -291,16 +309,15 @@ function updateTreeClearance() {
 }
 app.updateTreeClearance = updateTreeClearance;
 
-// Ночью интерьеры светятся тёплым светом сквозь стекло (внутренняя отделка — этап 3).
+// Свет от одного расчёта солнца: костры и очаг, фонари, столбики и светильники помещений, огонь в печах.
 const mats = buildings.userData.materials;
-const warm = new THREE.Color().setStyle('#ffcf96', THREE.SRGBColorSpace);
-mats.inner.emissive = warm.clone();
-mats.inner.emissiveIntensity = 0;
+const stoveGlass = [];
+buildings.traverse((o) => { if (o.userData.stoveGlass && !stoveGlass.includes(o.material)) stoveGlass.push(o.material); });
 env.onLight = (st) => {
   for (const f of fires) f.setLight(st);
-  mats.inner.emissiveIntensity = 0.32 * st.lamp;
-  mats.floor.emissive = warm;
-  mats.floor.emissiveIntensity = 0.12 * st.lamp;
+  for (const l of siteLights.lights) l.k = st.lamp;
+  siteLights.glow.emissiveIntensity = 2.2 * st.lamp;
+  for (const m of stoveGlass) m.emissiveIntensity = 1.6 * st.fire;
 };
 const sunPath = new SunPath(scene, invalidate, { center: [CX, CY - 0.5, CZ], radius: 26 });
 app.sunPath = sunPath;
@@ -328,6 +345,16 @@ function scheduleEnvCapture(delay = 400) {
 app.scheduleEnvCapture = scheduleEnvCapture;
 
 function onStateChange(state, event) {
+  app.editor?.applyState(state);
+  renderer.shadowMap.needsUpdate = true;
+  if (buildings.userData.facade !== state.facade) {
+    // В разрезе материалы подменены отсечёнными копиями: снять разрез, сменить фасад, вернуть разрез.
+    const c = app.cutInfo?.();
+    if (c?.bid) app.applyCut(null);
+    buildings.userData.setFacade(state.facade);
+    if (c?.bid) app.applyCut(c.bid, c.level);
+    renderer.shadowMap.needsUpdate = true;
+  }
   app.ui?.refresh(state, event);
   applySolar();
   if (event?.kind === 'undo' || event?.kind === 'redo') app.ui?.toast(`${event.kind === 'undo' ? 'Отменено' : 'Повторено'}: ${event.label || 'действие'}`);
@@ -497,18 +524,136 @@ app.toggleUI = () => {
   invalidate();
 };
 
+// ---------- режим «Внутри»: разрез выбранной постройки ----------
+// Материалы постройки заменяются копиями с плоскостью отсечения на высоте разреза этажа; тени по-прежнему
+// дают невидимые неотсечённые копии мешей (слой 1 — только для теневой камеры), поэтому кровля и стены
+// затеняют помещения как обычно. Срез стен — тёмные полосы на той же высоте.
+renderer.localClippingEnabled = true;
+const cut = { bid: null, level: 0, plane: new THREE.Plane(new THREE.Vector3(0, -1, 0), 0), clones: new Map(), saved: [], proxies: [] };
+app.interior = { bid: 'guest', level: 0, room: null };
+function clipClone(m) {
+  if (cut.clones.has(m)) return cut.clones.get(m);
+  const c = m.clone();
+  c.onBeforeCompile = m.onBeforeCompile;
+  if (Object.prototype.hasOwnProperty.call(m, 'customProgramCacheKey')) c.customProgramCacheKey = m.customProgramCacheKey;
+  c.clippingPlanes = [cut.plane];
+  cut.clones.set(m, c);
+  return c;
+}
+function clearCut() {
+  for (const s of cut.saved) {
+    if (s.cap) { s.o.visible = false; continue; }
+    if (s.hidden) { s.o.visible = true; continue; }
+    s.o.material = s.material;
+    s.o.castShadow = s.cast;
+  }
+  for (const p of cut.proxies) p.parent?.remove(p);
+  cut.saved = [];
+  cut.proxies = [];
+  cut.bid = null;
+}
+function applyCut(bid, level) {
+  if (cut.bid === bid && cut.level === level) return;
+  clearCut();
+  if (!bid) { invalidate(); return; }
+  const part = parts[bid];
+  const h = part.cutHeights[level] ?? part.cutHeights[0];
+  cut.plane.constant = floorY(bid) + h;
+  cut.bid = bid;
+  cut.level = level;
+  const meshes = [];
+  part.group.traverse((o) => { if (o.isMesh) meshes.push(o); });
+  for (const o of meshes) {
+    if (o.userData.cut !== undefined) {
+      if (o.userData.cut === level) { o.visible = true; cut.saved.push({ o, cap: true }); }
+      continue;
+    }
+    // Водостоки, лобовые и ветровые доски и подшивка свеса ниже плоскости разреза висели бы в воздухе
+    // вдоль карниза — на разрезе их нет.
+    if (['gutter', 'fascia', 'soffit'].includes(o.userData.slot) && o.visible) { o.visible = false; cut.saved.push({ o, hidden: true }); continue; }
+    cut.saved.push({ o, material: o.material, cast: o.castShadow });
+    if (o.castShadow) {
+      const p = new THREE.Mesh(o.geometry, o.material);
+      p.position.copy(o.position);
+      p.quaternion.copy(o.quaternion);
+      p.scale.copy(o.scale);
+      p.layers.set(1);
+      p.castShadow = true;
+      p.receiveShadow = false;
+      p.userData.shadowProxy = true;
+      o.parent.add(p);
+      cut.proxies.push(p);
+    }
+    o.castShadow = false;
+    o.material = clipClone(o.material);
+  }
+  invalidate();
+}
+app.applyCut = applyCut;
+app.cutInfo = () => ({ bid: cut.bid, level: cut.level });
+
+// Вид разреза: постройка (или помещение) сверху под углом, этаж — по уровню.
+function interiorView(bid, level, roomKey = null) {
+  const part = parts[bid];
+  const yLevel = floorY(bid) + (part.levels[level] ?? 0);
+  let cx, cz, size;
+  if (roomKey && ROOMS[roomKey]) {
+    const poly = ROOMS[roomKey].poly.map(([x, z]) => part.group.localToWorld(new THREE.Vector3(x, 0, z)));
+    const xs = poly.map((p) => p.x), zs = poly.map((p) => p.z);
+    cx = (Math.min(...xs) + Math.max(...xs)) / 2; cz = (Math.min(...zs) + Math.max(...zs)) / 2;
+    size = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs), 2.6);
+  } else {
+    const b = new THREE.Box3();
+    for (const poly of BUILDING[bid].footprint) for (const [x, z] of poly) b.expandByPoint(new THREE.Vector3(x, yLevel, z));
+    const c = b.getCenter(new THREE.Vector3());
+    cx = c.x; cz = c.z;
+    size = Math.max(b.max.x - b.min.x, b.max.z - b.min.z);
+  }
+  const v = VIEWS[bid] ?? VIEWS.site;
+  const l = Math.hypot(...v.dir);
+  const k = aspectK();
+  const dist = (size * 1.35 + 3) * Math.min(k, 1.8);
+  const elev = 0.86;
+  const horiz = dist * Math.cos(Math.asin(elev));
+  return { pos: [cx + (v.dir[0] / l) * horiz, yLevel + dist * elev, cz + (v.dir[1] / l) * horiz], target: [cx, yLevel + 0.6, cz] };
+}
+app.enterInterior = (bid = app.interior.bid, level = 0, room = null) => {
+  const lv = parts[bid].levels.length > level ? level : 0;
+  app.interior = { bid, level: lv, room };
+  app.focus = bid;
+  app.spot = null;
+  app.spotPois = null;
+  if (app.mode !== 'interior') setMode('interior', { keepView: true });
+  applyCut(bid, lv);
+  const v = interiorView(bid, lv, room ? `${bid}:${room}` : null);
+  flyTo(v.pos, v.target, 1000);
+  app.editor?.select(null);
+  app.ui?.onInterior(app.interior);
+  invalidate();
+};
+
 function setMode(mode, opts = {}) {
-  if (mode === 'interior') return;
   if (mode === app.mode && !opts.force) return;
   const prev = app.mode;
   if (prev === 'walk' && mode !== 'walk') app.walk.exit();
+  if (prev === 'interior' && mode !== 'interior') { clearCut(); app.editor?.select(null); }
   app.mode = mode;
   document.getElementById('app').className = `mode-${mode}${app.hidden ? ' ui-hidden' : ''}`;
+  INTERIOR.uIntAmb.value = mode === 'interior' ? 0.85 : 0.42;
   if (mode === 'walk') {
     app.stopCinema();
     app.walk.enter(opts.walk || {});
   } else {
     controls.enabled = true;
+  }
+  if (mode === 'interior' && !opts.keepView) {
+    app.mode = 'site';
+    app.enterInterior(app.interior.bid, app.interior.level);
+    return;
+  }
+  if (mode === 'site' && prev === 'interior') {
+    const v = viewFor(app.focus);
+    flyTo(v.pos, v.target, 1000);
   }
   applySettings();
   app.ui?.onModeChange(mode);
@@ -566,7 +711,11 @@ function renderFrame() {
   for (const f of fires) f.update(app.fireTime, cam, renderer);
   updatePointLights(app.mode === 'walk' ? cam.position : controls.target, app.fireTime);
   app.renderCount = (app.renderCount || 0) + 1;
+  // Адаптация глаза внутри построек (прогулка): экспозиция выше на время кадра.
+  const exp = renderer.toneMappingExposure;
+  if (app.exposureBoost && app.mode === 'walk') renderer.toneMappingExposure = exp * app.exposureBoost;
   composer.render();
+  renderer.toneMappingExposure = exp;
 }
 app.renderFrame = renderFrame;
 
@@ -597,7 +746,9 @@ app.exportPNG = async (w = 1800, h = 1120) => {
 
 // ---------- запуск ----------
 app.ui = new SiteUI(app);
-app.walk = new SiteWalk(app, { shrubs: landscape.getObjectByName('shrubs')?.userData.spots ?? [] });
+const walkData = Object.fromEntries(Object.entries(parts).map(([id, p]) => [id, { walls: p.walls, surfaces: p.surfaces, rails: p.rails, posts: p.posts, levels: p.levels }]));
+app.walk = new SiteWalk(app, { shrubs: landscape.getObjectByName('shrubs')?.userData.spots ?? [] }, walkData);
+app.editor = new FurnitureEditor(app);
 onStateChange(store.get(), { kind: 'init' });
 app.startupSource = startup.source;
 app.linkMessages = [];
@@ -664,6 +815,34 @@ window.__site = {
     return [id, { min: b.min.toArray(), max: b.max.toArray(), floorY: floorY(id), openings: p.openings.length }];
   })),
   groundY,
+  // Этап 3: режим «Внутри» (разрез), мебель с экранными координатами, фасад, ночной свет.
+  interior: () => {
+    let caps = 0, clipped = 0;
+    if (cut.bid) parts[cut.bid].group.traverse((o) => { if (!o.isMesh) return; if (o.userData.cut !== undefined && o.visible) caps++; if (o.material?.clippingPlanes?.length) clipped++; });
+    return { ...app.interior, cut: cut.bid, level: cut.bid ? cut.level : app.interior.level, plane: cut.bid ? cut.plane.constant - floorY(cut.bid) : null, caps, clipped };
+  },
+  items: (bid = null) => {
+    const cam = app.activeCamera();
+    const r = renderer.domElement.getBoundingClientRect();
+    return app.furniture.filter((h) => !bid || h.userData.item.building === bid).map((h) => {
+      const it = h.userData.item;
+      const w = h.parent.localToWorld(new THREE.Vector3(h.position.x, it.yLevel + Math.min(0.4, (it.h ?? 0.8) / 2), h.position.z));
+      const sp = w.clone().project(cam);
+      return { key: `${it.building}:${it.id}`, label: it.label, room: it.room, fixed: !!it.fixed, local: [h.position.x, h.position.z, Math.round(h.rotation.y * 180 / Math.PI)], base: it.base, world: w.toArray(), screen: [r.left + ((sp.x + 1) / 2) * r.width, r.top + ((1 - sp.y) / 2) * r.height], onScreen: Math.abs(sp.x) < 1 && Math.abs(sp.y) < 1 && sp.z < 1 };
+    });
+  },
+  selectedItem: () => app.editor?.selected?.userData.item.id ?? null,
+  facade: () => buildings.userData.facade,
+  // Материалы фасада и цоколя по постройкам (id материалов и карта цвета): цоколь должен быть одним на все.
+  facadeMaterials: () => Object.fromEntries(Object.entries(parts).map(([id, p]) => {
+    const out = { facade: new Set(), plinth: new Set() };
+    p.group.traverse((o) => {
+      if (!o.isMesh || !o.visible || o.userData.shadowProxy || !(o.userData.slot in out)) return;
+      out[o.userData.slot].add(o.material.name);
+    });
+    return [id, { facade: [...out.facade], plinth: [...out.plinth] }];
+  })),
+  lamps: () => ({ count: siteLights.lights.length, on: siteLights.lights.filter((l) => l.k > 0.01).length, glow: siteLights.glow.emissiveIntensity }),
   encodeHash: () => encodeHash(store.get()),
   newSite,
   stats: () => {

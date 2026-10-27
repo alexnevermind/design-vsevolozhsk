@@ -10,6 +10,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import SITE from '../dist/data/site-spec.js';
 import { pointInPolygon } from '../dist/geometry.js';
+import { ROOMS, fitsRoom } from '../dist/site-edit.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, v, i, a) => (v.startsWith('--') ? [...acc, [v.slice(2), a[i + 1]]] : acc), []));
@@ -173,6 +174,113 @@ try {
   await page.locator('#walk-exit').click();
   await page.waitForTimeout(600);
   record('Выход из прогулки — обзор участка', (await api(page, () => window.__site.mode())) === 'site');
+
+  // ---------- этап 3: фасады, ночной свет, «Внутри», мебель, прогулка внутри ----------
+  scenario = 'stage3';
+  await page.locator('[data-facade="plaster"]').click();
+  await page.waitForTimeout(500);
+  let fm = await api(page, () => ({ st: window.__site.state().facade, f: window.__site.facade(), m: window.__site.facadeMaterials() }));
+  const all = (k) => [...new Set(Object.values(fm.m).flatMap((b) => b[k]))];
+  record('Фасады «Штукатурка и кирпич» — на всех постройках', fm.st === 'plaster' && fm.f === 'plaster' && all('facade').length === 1 && /plaster/.test(all('facade')[0]) && Object.values(fm.m).every((b) => b.facade.length === 1), { note: all('facade').join(', ') });
+  record('Цоколь — один кирпич на все постройки', all('plinth').length === 1 && /brick/.test(all('plinth')[0]) && Object.values(fm.m).every((b) => b.plinth.length === 1), { note: all('plinth').join(', ') });
+  await page.locator('[data-facade="board"]').click();
+  await page.waitForTimeout(500);
+  fm = await api(page, () => ({ f: window.__site.facade(), m: window.__site.facadeMaterials() }));
+  record('Фасады «Доска» — вернулись', fm.f === 'board' && all('facade').length === 1 && !/plaster/.test(all('facade')[0]) && all('plinth').length === 1 && !/brick/.test(all('plinth')[0]), { note: `${all('facade')} · ${all('plinth')}` });
+  // Ночь: фонари у дверей, столбики и свет помещений горят; днём — погашены.
+  await api(page, () => window.__site.app.store.commit((s) => { s.hour = 23.25; }, 'ночь'));
+  await page.waitForTimeout(600);
+  let lamps = await api(page, () => window.__site.lamps());
+  record('Ночь 23:15: фонари и светильники горят', lamps.count > 20 && lamps.on === lamps.count && lamps.glow > 0.5, { note: `${lamps.on} из ${lamps.count}` });
+  await api(page, () => window.__site.app.store.commit((s) => { s.hour = 13; }, 'день'));
+  await page.waitForTimeout(600);
+  lamps = await api(page, () => window.__site.lamps());
+  record('День 13:00: фонари погашены', lamps.on === 0 && lamps.glow < 0.05);
+
+  // «Внутри»: разрез гостевого дома на 2,1 м, срезы стен, мансарда, другие постройки.
+  await page.locator('.modes [data-mode="interior"]').click();
+  await settle(page, 600);
+  let inn = await api(page, () => window.__site.interior());
+  record('«Внутри»: разрез гостевого дома, 1 этаж на высоте 2,1 м', (await api(page, () => window.__site.mode())) === 'interior' && inn.cut === 'guest' && inn.level === 0 && Math.abs(inn.plane - 2.1) < 1e-6 && inn.clipped > 20 && inn.caps > 0, { note: `отсечено мешей ${inn.clipped}, срезов ${inn.caps}` });
+  const f2 = SITE.sources.guest.heights.main.floor2 / 1000;
+  await page.locator('[data-level="1"]').click();
+  await settle(page, 600);
+  inn = await api(page, () => window.__site.interior());
+  record('«Внутри»: мансарда — разрез на 1,3 м над её полом', inn.cut === 'guest' && inn.level === 1 && Math.abs(inn.plane - (f2 + 1.3)) < 1e-6, { note: `${inn.plane.toFixed(2)} м от пола 1 этажа` });
+  for (const bid of ['grill', 'garage']) {
+    await page.locator(`[data-ibld="${bid}"]`).click();
+    await settle(page, 600);
+    inn = await api(page, () => window.__site.interior());
+    record(`«Внутри»: разрез «${SITE.buildings.find((b) => b.id === bid).name}»`, inn.cut === bid && inn.clipped > 5 && inn.caps > 0);
+  }
+  // Мебель: перенос мышью в гостиной, поворот кнопкой, «На место»; положения — в состоянии.
+  await page.locator('[data-ibld="guest"]').click();
+  await settle(page, 400);
+  await page.locator('[data-room="G02"]').click();
+  await settle(page, 800);
+  const items = await api(page, () => window.__site.items('guest'));
+  const coffee = items.find((i) => i.key === 'guest:coffee');
+  await page.mouse.move(coffee.screen[0], coffee.screen[1]);
+  await page.mouse.down();
+  for (let k = 1; k <= 6; k++) { await page.mouse.move(coffee.screen[0] + k * 9, coffee.screen[1] + k * 6); await page.waitForTimeout(60); }
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  const sel = await api(page, () => window.__site.selectedItem());
+  let st3 = await api(page, () => ({ s: window.__site.state(), items: window.__site.items('guest') }));
+  let it = st3.items.find((i) => i.key === `guest:${sel}`);
+  const moved = it && st3.s.items[it.key] && Math.hypot(it.local[0] - it.base[0], it.local[1] - it.base[1]) > 0.05;
+  const itemDef = { building: 'guest', room: it?.room, w: 0.01, d: 0.01 };
+  record('Мебель: перенос мышью сохраняется в состоянии', !!moved, { note: it ? `${it.label}: ${it.base.slice(0, 2).map((v) => v.toFixed(2))} → ${it.local.slice(0, 2).map((v) => v.toFixed(2))}` : `выбрано: ${sel}` });
+  record('Мебель: предмет остался в своём помещении', !!it && pointInPolygon(it.local[0], it.local[1], ROOMS[`guest:${it.room}`].poly) && fitsRoom(itemDef, it.local[0], it.local[1], 0));
+  record('Мебель: выбранный предмет показан в панели', await page.locator('#item-box').isVisible() && (await page.locator('#item-name').textContent()).length > 0);
+  const rot0 = it?.local[2] ?? 0;
+  await page.locator('[data-rot="45"]').click();
+  await page.waitForTimeout(400);
+  st3 = await api(page, () => ({ s: window.__site.state(), items: window.__site.items('guest') }));
+  it = st3.items.find((i) => i.key === `guest:${sel}`);
+  record('Мебель: поворот на 45° кнопкой', !!it && Math.abs(((it.local[2] - rot0 + 540) % 360) - 180) === 45 && st3.s.items[it.key]?.[2] === it.local[2], { note: `${rot0}° → ${it?.local[2]}°` });
+  // Ссылка с переставленной мебелью восстанавливает положение.
+  const hash3 = await api(page, () => window.__site.encodeHash());
+  const { ctx: ctx3, page: p3 } = await openPage(browser, { hash: hash3 });
+  const restored = await api(p3, (k) => window.__site.items('guest').find((i) => i.key === k), it.key);
+  record('Ссылка восстанавливает перестановку мебели', Math.abs(restored.local[0] - it.local[0]) < 1e-3 && Math.abs(restored.local[1] - it.local[1]) < 1e-3 && restored.local[2] === it.local[2]);
+  await ctx3.close();
+  await page.locator('[data-reset]').click();
+  await page.waitForTimeout(400);
+  st3 = await api(page, () => ({ s: window.__site.state(), items: window.__site.items('guest') }));
+  it = st3.items.find((i) => i.key === `guest:${sel}`);
+  record('Мебель: «На место» — исходная расстановка по листу', !st3.s.items[it.key] && Math.hypot(it.local[0] - it.base[0], it.local[1] - it.base[1]) < 1e-6 && it.local[2] === it.base[2]);
+  // Встроенное не переставляется: печь-камин.
+  const stove = st3.items.find((i) => i.key === 'guest:stove');
+  if (stove.onScreen) {
+    await page.mouse.move(stove.screen[0], stove.screen[1]);
+    await page.mouse.down();
+    await page.mouse.move(stove.screen[0] + 60, stove.screen[1] + 30, { steps: 4 });
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    const s4 = await api(page, () => ({ s: window.__site.state(), st: window.__site.items('guest').find((i) => i.key === 'guest:stove') }));
+    record('Встроенная печь-камин не сдвигается', !s4.s.items['guest:stove'] && Math.hypot(s4.st.local[0] - s4.st.base[0], s4.st.local[1] - s4.st.base[1]) < 1e-6);
+  }
+  // Прогулка внутри (без выбранного помещения): старт у входной двери изнутри, дверь открыта, стены держат.
+  await page.locator('[data-ibld="guest"]').click();
+  await settle(page, 400);
+  await page.locator('[data-walkin]').click();
+  await page.waitForFunction(() => window.__site.walk()?.doors.length > 0, null, { timeout: 20000, polling: 300 }).catch(() => {});
+  w = await api(page, () => window.__site.walk());
+  const gFloor = SITE.levels.guest.floor - SITE.datum;
+  record('Прогулка внутри: старт в гостевом доме на полу 1 этажа', w.active && w.inside === 'guest' && Math.abs(w.floor - gFloor) < 0.01, { note: `${w.place}` });
+  record('Прогулка внутри: входная дверь рядом открывается', w.doors.some((d) => String(d).startsWith('GD2')), { note: w.doors.join(', ') || 'нет открытых' });
+  await holdUntil(page, 'KeyW', () => false, null, 8000);
+  await holdUntil(page, 'KeyA', () => false, null, 6000);
+  w = await api(page, () => window.__site.walk());
+  record('Прогулка внутри: стены и перегородки непроходимы', w.inside === 'guest', { note: `${w.x.toFixed(2)}, ${w.z.toFixed(2)} · ${w.place}` });
+  await page.locator('#walk-exit').click();
+  await page.waitForTimeout(600);
+  await page.locator('.modes [data-mode="site"]').click();
+  await settle(page, 400);
+  inn = await api(page, () => window.__site.interior());
+  record('Возврат к участку: разрез снят', inn.cut === null && inn.caps === 0 && (await api(page, () => window.__site.mode())) === 'site');
+  scenario = 'desktop';
 
   // Ссылка: состояние в адресе восстанавливается.
   await api(page, () => window.__site.app.store.commit((s) => { s.hour = 18.5; s.solar.date = '2026-09-01'; }, 'проверка'));

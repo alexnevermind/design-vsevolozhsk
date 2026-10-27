@@ -12,9 +12,28 @@
 .views { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .views button { border: 1px solid var(--line, #e3ded3); background: #fff; border-radius: 8px; padding: 5px 9px; font-size: 12px; cursor: pointer; }
 .views button:hover { border-color: var(--accent); color: var(--accent); }
-.modes button[disabled] { opacity: .45; cursor: not-allowed; }
 #app.mode-walk .site-panel { display: none; }
 @media (max-width: 760px) {
   .site-panel { top: auto; bottom: 8px; left: 8px; right: 8px; width: auto; max-height: 42vh; }
   #app:has(.side-panel:not(.collapsed)) .cam-controls { display: none; }
 }
+
+.facade-pick { margin: 10px 0 2px; }
+.facade-pick .pick-title { display: block; font-size: 12px; color: var(--muted); margin: 0 2px 5px; }
+.facade-pick .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.facade-pick .seg button { display: flex; align-items: center; gap: 7px; border: 1px solid var(--line, #e3ded3); background: #fff; border-radius: 9px; padding: 6px 8px; font: inherit; font-size: 12px; cursor: pointer; text-align: left; }
+.facade-pick .seg button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: inherit; }
+.sw { flex: none; width: 22px; height: 22px; border-radius: 5px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
+.sw-board { background: repeating-linear-gradient(90deg, #cbc7bf 0 5px, #b9b5ad 5px 6px); box-shadow: inset 0 -6px 0 #a3a19b, inset 0 0 0 1px rgba(0,0,0,.12); }
+.sw-plaster { background: #eee9e2; box-shadow: inset 0 -6px 0 #8d4f37, inset 0 0 0 1px rgba(0,0,0,.12); }
+
+.levels { margin: 10px 0 2px; display: grid; grid-template-columns: 1fr 1fr; }
+.room-list { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
+.room-list button { display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--line, #e3ded3); background: #fff; border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 13px; cursor: pointer; color: inherit; }
+.room-list button b { font-weight: 600; color: var(--muted); font-size: 12px; }
+.room-list button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.item-box { margin-top: 10px; border: 1px solid var(--accent); border-radius: 10px; padding: 8px 10px; background: var(--accent-soft); }
+.item-box strong { display: block; font-size: 13px; margin-bottom: 6px; }
+.item-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.item-actions button { border: 1px solid var(--line, #e3ded3); background: #fff; border-radius: 8px; padding: 4px 9px; font-size: 12px; cursor: pointer; }
+.item-actions button[disabled] { opacity: .45; cursor: not-allowed; }

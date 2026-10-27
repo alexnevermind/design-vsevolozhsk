@@ -11,6 +11,13 @@ import { pointInPolygon } from './geometry.js';
 const gain = (name) => 1 / Math.pow(MANIFEST.maps[name]?.mean ?? 1, 2.2);
 export const tinted = (hex, map) => srgbColor(hex).multiplyScalar(gain(map));
 
+// Варианты фасада: доска с цоколем из штукатурки (рендеры) или декоративная штукатурка «короед» с
+// цоколем из облицовочного кирпича (фото владельца); цоколь одинаковый на всех постройках.
+export const FACADES = {
+  board: { label: 'Доска', note: 'вертикальная доска, цоколь — штукатурка' },
+  plaster: { label: 'Штукатурка и кирпич', note: 'декоративная штукатурка, цоколь — кирпич' },
+};
+
 // Палитра отделки (по рендерам): тёплая светло-серая доска, белые детали, графитовая кровля, серый цоколь.
 export const FINISH = {
   board: '#c9c5bd',
@@ -25,7 +32,47 @@ export const FINISH = {
 };
 
 // Материалы построек. UV задаются в метрах; масштаб тайла — в repeat не используется (UV = м / тайл).
-export const TILE = { facade: 0.96, pavers: 0.8, stucco: 1.0, metal: 0.5, trim: 0.96 };
+export const TILE = { facade: 0.96, pavers: 0.8, stucco: 1.0, metal: 0.5, trim: 0.96, lining: 0.84, laminate: 1.158, tile: 1.2 };
+
+// Свет внутри построек: рассеянный свет неба и окружения ослабляется (помещение закрыто стенами и
+// кровлей), прямое солнце через окна и тени — как есть. uIntAmb меняется сценой (обзор, разрез, прогулка).
+export const INTERIOR = { uIntAmb: { value: 0.42 } };
+const interiorPatched = new WeakSet();
+export function interiorLight(material) {
+  if (interiorPatched.has(material)) return material;
+  interiorPatched.add(material);
+  material.userData.interiorLight = true;
+  const prev = material.onBeforeCompile;
+  material.onBeforeCompile = (shader, renderer) => {
+    prev?.call(material, shader, renderer);
+    shader.uniforms.uIntAmb = INTERIOR.uIntAmb;
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uIntAmb;')
+      // Окружение снаружи (газон снизу) не красит помещение: нижняя полусфера заменяется верхней,
+      // цвет приглушается до почти нейтрального.
+      .replace('#include <lights_fragment_maps>', THREE.ShaderChunk.lights_fragment_maps.replace('iblIrradiance += getIBLIrradiance( geometryNormal );', `{
+        vec3 inWN = inverseTransformDirection( geometryNormal, viewMatrix );
+        inWN.y = abs( inWN.y );
+        vec3 inIbl = getIBLIrradiance( transformDirection( inWN, viewMatrix ) );
+        iblIrradiance += mix( vec3( dot( inIbl, vec3( 0.2126, 0.7152, 0.0722 ) ) ), inIbl, 0.35 );
+      }`))
+      // Внутри отражается и переотражается дерево, а не небо: отражения окружения почти без цвета,
+      // с тёплым оттенком (иначе тёмно-серый ламинат синеет от неба в окнах).
+      .replace('#include <lights_fragment_end>', `#if defined( RE_IndirectDiffuse )
+irradiance = mix( vec3( dot( irradiance, vec3( 0.2126, 0.7152, 0.0722 ) ) ), irradiance, 0.5 ) * vec3( 1.05, 1.0, 0.92 ) * uIntAmb;
+iblIrradiance *= vec3( 1.05, 1.0, 0.92 ) * uIntAmb;
+#endif
+#if defined( RE_IndirectSpecular )
+radiance = mix( vec3( dot( radiance, vec3( 0.2126, 0.7152, 0.0722 ) ) ), radiance, 0.25 ) * vec3( 1.06, 1.0, 0.9 ) * uIntAmb;
+clearcoatRadiance = mix( vec3( dot( clearcoatRadiance, vec3( 0.2126, 0.7152, 0.0722 ) ) ), clearcoatRadiance, 0.25 ) * vec3( 1.06, 1.0, 0.9 ) * uIntAmb;
+#endif
+#include <lights_fragment_end>`);
+  };
+  const prevKey = material.customProgramCacheKey.bind(material);
+  material.customProgramCacheKey = () => `${prevKey()}|int2`;
+  material.needsUpdate = true;
+  return material;
+}
 
 // Стекло окон: пропускание с заметным отражением окружения (на рендерах в стёклах — лес и небо).
 function siteGlass(lib) {
@@ -50,6 +97,14 @@ export function siteMaterials(lib) {
       color: tinted(FINISH.trim, 'arch_paint_albedo'), map: lib.tex('arch_paint_albedo', true), normalMap: lib.tex('arch_normal'),
       normalScale: new THREE.Vector2(0.08, 0.08), roughness: 0.6, clearcoat: 0.08, clearcoatRoughness: 0.5, envMapIntensity: 0.8,
     }),
+    plaster: physical('plaster', {
+      color: tinted('#eee9e2', 'plaster_albedo'), map: lib.tex('plaster_albedo', true), normalMap: lib.tex('plaster_normal'),
+      normalScale: new THREE.Vector2(1.1, 1.1), roughnessMap: lib.tex('plaster_rough'), roughness: 1, envMapIntensity: 0.7,
+    }),
+    brick: physical('brick', {
+      color: new THREE.Color(1, 1, 1), map: lib.tex('brick_albedo', true), normalMap: lib.tex('brick_normal'),
+      normalScale: new THREE.Vector2(1.0, 1.0), roughnessMap: lib.tex('brick_rough'), roughness: 1, envMapIntensity: 0.5,
+    }),
     plinth: physical('plinth', {
       color: tinted(FINISH.plinth, 'stucco_albedo'), map: lib.tex('stucco_albedo', true), normalMap: lib.tex('stucco_normal'),
       normalScale: new THREE.Vector2(0.8, 0.8), roughness: 0.95, envMapIntensity: 0.5,
@@ -68,11 +123,21 @@ export function siteMaterials(lib) {
     steel: physical('steelPipe', { color: srgbColor(FINISH.steel), metalness: 0.85, roughness: 0.42, envMapIntensity: 0.55 }),
     black: physical('blackMetal', { color: srgbColor(FINISH.snow), metalness: 0.5, roughness: 0.42, clearcoat: 0.2, envMapIntensity: 0.7 }),
     rubber: physical('seal', { color: srgbColor('#2a2b2d'), roughness: 0.8, envMapIntensity: 0.3 }),
-    // Снаружи помещения видны сквозь стекло приглушёнными (как на рендере): тёмный тон, слабое окружение.
-    inner: lib.make('site|innerWall', () => new THREE.MeshPhysicalMaterial({ color: srgbColor('#9d978d'), roughness: 0.9, envMapIntensity: 0.15 }), { interior: true }),
-    floor: lib.make('site|innerFloor', () => new THREE.MeshPhysicalMaterial({
-      color: tinted('#8c7a62', 'floor_albedo'), map: lib.tex('floor_albedo', true), normalMap: lib.tex('floor_normal'), normalScale: new THREE.Vector2(0.3, 0.3), roughness: 0.75, envMapIntensity: 0.15, vertexColors: true,
-    }), { interior: true }),
+    // Интерьеры (решение владельца): стены и потолки — вертикальная имитация бруса (сосна под лаком),
+    // пол — тёмно-серый ламинат; мокрые помещения — тёмно-серый керамогранит.
+    inner: interiorLight(physical('lining', {
+      color: new THREE.Color(1.12, 1.08, 1.02), map: lib.tex('lining_albedo', true), normalMap: lib.tex('lining_normal'), normalScale: new THREE.Vector2(0.7, 0.7),
+      roughnessMap: lib.tex('lining_rough'), roughness: 1, clearcoat: 0.25, clearcoatRoughness: 0.45, envMapIntensity: 0.6,
+    })),
+    floor: interiorLight(physical('laminate', {
+      color: new THREE.Color(1, 1, 1), map: lib.tex('laminate_albedo', true), normalMap: lib.tex('laminate_normal'), normalScale: new THREE.Vector2(0.5, 0.5),
+      roughnessMap: lib.tex('laminate_rough'), roughness: 1, clearcoat: 0.15, clearcoatRoughness: 0.35, envMapIntensity: 0.7,
+    })),
+    tile: interiorLight(physical('tileFloor', {
+      color: new THREE.Color(1, 1, 1), map: lib.tex('tile_albedo', true), normalMap: lib.tex('tile_normal'), normalScale: new THREE.Vector2(0.5, 0.5), roughness: 0.55, envMapIntensity: 0.7,
+    })),
+    // Срез стен в режиме «Внутри».
+    section: physical('section', { color: srgbColor('#3b3a38'), roughness: 0.9, envMapIntensity: 0.2 }),
     glass: siteGlass(lib),
     darkGlass: physical('skylightGlass', { color: srgbColor('#1b2228'), roughness: 0.04, metalness: 0.2, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.3 }),
     concrete: physical('stepConcrete', {
@@ -83,6 +148,24 @@ export function siteMaterials(lib) {
 
 // ---------- геометрия ----------
 const V2 = (p) => new THREE.Vector2(p[0], p[1]);
+const inPoly2 = (x, y, poly) => pointInPolygon(x, y, poly);
+// Отсечение многоугольника полосой a ≤ s ≤ b (по первой координате).
+function clipX(poly, a, b) {
+  const cut = (pts, f) => {
+    const out = [];
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i], q = pts[(i + 1) % pts.length];
+      const fp = f(p), fq = f(q);
+      if (fp >= 0) out.push(p);
+      if ((fp >= 0) !== (fq >= 0)) { const t = fp / (fp - fq); out.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]); }
+    }
+    return out;
+  };
+  let r = poly;
+  if (a > -Infinity) r = cut(r, (p) => p[0] - a);
+  if (b < Infinity && r.length) r = cut(r, (p) => b - p[0]);
+  return r;
+}
 
 // Стена: наружная грань по линии a→b (локальные XZ), n — наружная нормаль, t — толщина;
 // top — верхний контур [[s, y], ...] по возрастанию s; holes — многоугольники проёмов в (s, y).
@@ -101,7 +184,8 @@ export function wallGeometry(G, { a, b, n, t, top, y0 = 0, holes = [], ends = [t
   for (const [side, key, d, nn] of [['out', keyOut, inset, nOut], ['in', keyIn, t, nIn]]) {
     const mb = G.get(key);
     const base = mb.vertexCount;
-    for (const [s, y] of all) mb.vertex(P(s, y, d), nn, side === 'out' ? [s / TILE.facade, y / TILE.facade] : [s, y], 1);
+    const tile = key === 'inner' ? TILE.lining : TILE.facade;
+    for (const [s, y] of all) mb.vertex(P(s, y, d), nn, [s / tile, y / tile], 1);
     for (const [i, j, k] of tris) {
       // Обход выбирается по нормали грани.
       const p0 = P(...all[i], d), p1 = P(...all[j], d), p2 = P(...all[k], d);
@@ -139,6 +223,32 @@ export function wallGeometry(G, { a, b, n, t, top, y0 = 0, holes = [], ends = [t
     const m = [-e[1] / l, e[0] / l];
     inner.quad(P(s0, y0t, 0), P(s1, y1t, 0), P(s1, y1t, t), P(s0, y0t, t), [u[0] * m[0], m[1], u[1] * m[0]], [0, 0], [1, 0], [1, 1], [0, 1]);
   }
+  // Срезы стены на высотах разреза режима «Внутри» (G.cutHeights): полосы по толщине стены там, где
+  // стена есть на этой высоте (ниже верха и вне проёмов).
+  (G.cutHeights ?? []).forEach((h, ci) => {
+    if (h <= y0) return;
+    const topAt = (s) => {
+      for (let i = 0; i + 1 < top.length; i++) {
+        const [sa, ya] = top[i], [sb, yb] = top[i + 1];
+        if (s >= sa - 1e-9 && s <= sb + 1e-9) return sb - sa < 1e-9 ? Math.max(ya, yb) : ya + ((yb - ya) * (s - sa)) / (sb - sa);
+      }
+      return top[top.length - 1][1];
+    };
+    const solid = (s) => topAt(s) > h + 0.005 && !holes.some((hp) => inPoly2(s, h, hp));
+    const step = 0.02;
+    const cap = G.get(`cut${ci}`);
+    let start = null;
+    for (let s = 0; s <= L + 1e-9; s += step) {
+      const sc = Math.min(s, L);
+      const on = solid(Math.min(Math.max(sc, 1e-4), L - 1e-4));
+      if (on && start === null) start = sc;
+      if ((!on || sc >= L) && start !== null) {
+        const e = on ? L : sc;
+        if (e - start > 0.005) cap.quad(P(start, h, inset), P(e, h, inset), P(e, h, t), P(start, h, t), [0, 1, 0], [start, 0], [e, 0], [e, t], [start, t]);
+        start = null;
+      }
+    }
+  });
   // Торцы.
   const outMb = G.get(keyOut);
   if (ends[0]) outMb.quad(P(0, y0, inset), P(0, top[0][1], inset), P(0, top[0][1], t), P(0, y0, t), [-u[0], 0, -u[1]], [0, 0], [0, top[0][1] / TILE.facade], [t / TILE.facade, top[0][1] / TILE.facade], [t / TILE.facade, 0]);
@@ -213,7 +323,7 @@ export function opening(G, W, n, t, o, { trim = true, keystone = null, sill = tr
   const y0 = Math.min(...poly.map((p) => p[1])), y1 = Math.max(...poly.map((p) => p[1]));
   const nOut = [n[0], 0, n[1]];
   // Коробка по контуру проёма: брусья по рёбрам многоугольника.
-  const edgeBeam = (p, q, width, depth, key, dd = d0) => {
+  const edgeBeamIn = (B, p, q, width, depth, key, dd = d0) => {
     const e = [q[0] - p[0], q[1] - p[1]];
     const l = Math.hypot(...e);
     if (l < 1e-4) return;
@@ -224,14 +334,15 @@ export function opening(G, W, n, t, o, { trim = true, keystone = null, sill = tr
     const c2 = [mid[0] + m[0] * width / 2, mid[1] + m[1] * width / 2];
     const c3 = P(c2[0], c2[1], dd + depth / 2);
     const a3 = P(p[0], p[1], dd), b3 = P(q[0], q[1], dd);
-    box(G, key, c3, [l, depth, width], [b3[0] - a3[0], b3[1] - a3[1], b3[2] - a3[2]], { up: nOut, uvScale: 1 });
+    box(B, key, c3, [l, depth, width], [b3[0] - a3[0], b3[1] - a3[1], b3[2] - a3[2]], { up: nOut, uvScale: 1 });
   };
+  const edgeBeam = (p, q, width, depth, key, dd = d0) => edgeBeamIn(G, p, q, width, depth, key, dd);
   for (let i = 0; i < poly.length; i++) edgeBeam(poly[i], poly[(i + 1) % poly.length], fw, fd, 'frame');
   // Импосты: створки не шире 0,95 м (окна) / по числу створок (двери).
   const inner = [s0 + fw, s1 - fw];
   const span = inner[1] - inner[0];
   let cuts = [];
-  if (o.kind === 'garage') cuts = [];
+  if (o.kind === 'garage' || o.kind === 'door') cuts = [];
   else if (o.door) cuts = [o.door[0], o.door[1], ...(o.leaves === 2 ? [(o.door[0] + o.door[1]) / 2] : [])].filter((s) => s > inner[0] + 0.05 && s < inner[1] - 0.05);
   else {
     const k = o.kind === 'door' ? (o.leaves ?? 1) : Math.max(1, Math.round(span / 0.95));
@@ -248,20 +359,34 @@ export function opening(G, W, n, t, o, { trim = true, keystone = null, sill = tr
   };
   for (const s of cuts) edgeBeam([s - fw / 2, y0 + fw], [s - fw / 2, topAt(s) - fw], fw, fd, 'frame');
   if (o.transom) for (let i = 0; i < 1; i++) edgeBeam([s0 + fw, o.transom], [s1 - fw, o.transom], fw * 1.6, fd, 'frame');
-  // Створки дверей: рамка шире (полотно), ручка.
-  if (o.kind === 'door' || o.door) {
+  // Створки дверей: рамка шире (полотно), ручка, стекло. Если у построителя есть G.newLeaf — каждая
+  // створка строится в своём построителе с петлёй (открывается в прогулке), иначе — в общем.
+  const isDoor = o.kind === 'door' || !!o.door;
+  let doorRange = null;
+  if (isDoor) {
     const [ds0, ds1] = o.door ?? [s0, s1];
+    doorRange = [ds0, ds1];
     const leaves = o.leaves ?? (o.door ? 2 : 1);
+    const lh = Math.min(y1, 2.25) - fw;
     for (let k = 0; k < leaves; k++) {
-      const a0 = ds0 + ((ds1 - ds0) * k) / leaves + fw, a1 = ds0 + ((ds1 - ds0) * (k + 1)) / leaves - (k + 1 < leaves ? 0 : fw);
-      const lh = Math.min(y1, 2.25) - fw;
+      const a0 = ds0 + ((ds1 - ds0) * k) / leaves + (k === 0 ? fw : 0.004), a1 = ds0 + ((ds1 - ds0) * (k + 1)) / leaves - (k + 1 < leaves ? 0.004 : fw);
+      const hingeAtEnd = leaves === 2 && k === 1;
+      const hs = hingeAtEnd ? a1 : a0;
+      const LG = G.newLeaf ? G.newLeaf({ hinge: P(hs, y0, d0 + fd / 2), u: W.u, n, width: a1 - a0, fromEnd: hingeAtEnd, id: o.id ? `${o.id}${leaves > 1 ? `-${k + 1}` : ''}` : null }) : G;
       const rect = rectHole(a0, a1, y0 + fw, lh);
       for (let i = 0; i < 4; i++) {
         const p = rect[i], q = rect[(i + 1) % 4];
-        edgeBeam(p, q, i === 0 ? 0.12 : 0.085, 0.065, 'frame', d0 + 0.004);
+        edgeBeamIn(LG, p, q, i === 0 ? 0.12 : 0.085, 0.065, 'frame', d0 + 0.004);
       }
-      const hx = k === 0 && leaves === 2 ? a1 - 0.07 : a0 + 0.07;
-      box(G, 'steel', P(hx, 1.02, d0 - 0.03), [0.13, 0.02, 0.02], [W.u[0], 0, W.u[1]]);
+      const hx = hingeAtEnd ? a0 + 0.07 : a1 - 0.07;
+      box(LG, 'steel', P(hx, 1.02, d0 - 0.03), [0.13, 0.02, 0.02], [W.u[0], 0, W.u[1]]);
+      box(LG, 'steel', P(hx, 1.02, d0 + fd + 0.03), [0.13, 0.02, 0.02], [W.u[0], 0, W.u[1]]);
+      planar(LG, 'glass', [[a0 + 0.085, y0 + fw + 0.12], [a1 - 0.085, y0 + fw + 0.12], [a1 - 0.085, lh - 0.085], [a0 + 0.085, lh - 0.085]], (ss, yy) => P(ss, yy, d0 + fd * 0.55), nOut);
+    }
+    // Над створками (проём выше 2,25 м) — глухая фрамуга с импостом.
+    if (y1 > lh + fw + 0.06) {
+      planar(G, 'glass', [[ds0, lh + fw], [ds1, lh + fw], [ds1, topAt(ds1 - 0.01) - fw * 0.5], [ds0, topAt(ds0 + 0.01) - fw * 0.5]], (ss, yy) => P(ss, yy, d0 + fd * 0.55), nOut);
+      edgeBeam([ds0, lh + fw / 2], [ds1, lh + fw / 2], fw, fd, 'frame');
     }
   }
   if (o.kind === 'garage') {
@@ -275,9 +400,11 @@ export function opening(G, W, n, t, o, { trim = true, keystone = null, sill = tr
     }
     box(G, 'steel', P((s0 + s1) / 2, y0 + 0.08, d0 - 0.005), [0.2, 0.025, 0.03], [W.u[0], 0, W.u[1]]);
   } else {
-    // Стекло — по контуру проёма за коробкой.
-    const gpoly = poly.map(([s, y]) => [Math.min(Math.max(s, s0 + fw * 0.5), s1 - fw * 0.5), Math.min(Math.max(y, y0 + fw * 0.5), y1 - fw * 0.5)]);
-    planar(G, 'glass', gpoly, (s, y) => P(s, y, d0 + fd * 0.55), nOut);
+    // Стекло — по контуру проёма за коробкой; в проёме двери — только вне створок.
+    const clamp = ([ss, yy]) => [Math.min(Math.max(ss, s0 + fw * 0.5), s1 - fw * 0.5), Math.min(Math.max(yy, y0 + fw * 0.5), y1 - fw * 0.5)];
+    const gpoly = poly.map(clamp);
+    const pieces = !doorRange ? [gpoly] : !o.door ? [] : [clipX(gpoly, -Infinity, doorRange[0]), clipX(gpoly, doorRange[1], Infinity)].filter((q) => q.length >= 3);
+    for (const g of pieces) planar(G, 'glass', g, (ss, yy) => P(ss, yy, d0 + fd * 0.55), nOut);
   }
   if (!trim) return;
   // Наличник 120 мм по сторонам и верху, отлив внизу (у дверей — без отлива).
@@ -335,7 +462,7 @@ export function cornerBoards(G, corner, d1, d2, y0, y1, { w = 0.12, tp = 0.025 }
     const l = Math.hypot(nx, nz) || 1;
     nx /= l; nz /= l;
     const c = [corner[0] + d[0] * w / 2 + nx * tp / 2, (y0 + y1) / 2, corner[1] + d[1] * w / 2 + nz * tp / 2];
-    box(G, 'trim', c, [y1 - y0, tp, w + tp], [0, 1, 0], { up: [nx, 0, nz] });
+    box(G, 'corner', c, [y1 - y0, tp, w + tp], [0, 1, 0], { up: [nx, 0, nz] });
   }
 }
 
@@ -354,7 +481,38 @@ export function plinth(G, poly, yb = -0.4, { inset = 0.015, cut = [] } = {}) {
     const Bp = [b[0] - n[0] * inset, b[1] - n[1] * inset];
     mb.quad([A[0], yb, A[1]], [Bp[0], yb, Bp[1]], [Bp[0], 0, Bp[1]], [A[0], 0, A[1]], [n[0], 0, n[1]], [0, yb], [L, yb], [L, 0], [0, 0]);
     // Капельник.
-    box(G, 'trim', [(a[0] + b[0]) / 2 + n[0] * 0.012, -0.012, (a[1] + b[1]) / 2 + n[1] * 0.012], [L + 0.05, 0.03, 0.035], [u[0], 0, u[1]]);
+    box(G, 'drip', [(a[0] + b[0]) / 2 + n[0] * 0.012, -0.012, (a[1] + b[1]) / 2 + n[1] * 0.012], [L + 0.05, 0.03, 0.035], [u[0], 0, u[1]]);
   }
   void cut;
+}
+
+// Межкомнатная дверь в проёме стены/перегородки: наличники из массива с обеих сторон, коробка, полотно
+// (массив или стекло в деревянной обвязке) на петле — строится в построителе створки (G.newLeaf).
+// W — стена (P, u), n — нормаль стороны «a», t — толщина; полотно открывается в сторону −n.
+export function interiorDoor(G, W, n, t, s0, s1, { y1 = 2.1, glass = false, id = null } = {}) {
+  const { P } = W;
+  const nOut = [n[0], 0, n[1]];
+  const u3 = [W.u[0], 0, W.u[1]];
+  const cw = 0.07, ct = 0.014;
+  // Наличники и коробка.
+  for (const [d, nn] of [[-ct / 2, nOut], [t + ct / 2, nOut.map((v) => -v)]]) {
+    box(G, 'casing', P(s0 - cw / 2, y1 / 2 + 0.01, d), [y1 + cw, ct, cw], [0, 1, 0], { up: u3 });
+    box(G, 'casing', P(s1 + cw / 2, y1 / 2 + 0.01, d), [y1 + cw, ct, cw], [0, 1, 0], { up: u3 });
+    box(G, 'casing', P((s0 + s1) / 2, y1 + cw / 2, d), [s1 - s0 + 2 * cw, cw, ct], u3, { up: nn });
+  }
+  for (const s of [s0 + 0.012, s1 - 0.012]) box(G, 'casing', P(s, y1 / 2, t / 2), [y1, t, 0.024], [0, 1, 0], { up: nOut });
+  box(G, 'casing', P((s0 + s1) / 2, y1 - 0.012, t / 2), [s1 - s0, 0.024, t], u3, { up: [0, 1, 0] });
+  // Полотно.
+  const a0 = s0 + 0.026, a1 = s1 - 0.026;
+  const LG = G.newLeaf ? G.newLeaf({ hinge: P(a0, 0, t / 2), u: W.u, n, width: a1 - a0, fromEnd: false, id }) : G;
+  const lt = 0.04, lh = y1 - 0.03;
+  if (glass) {
+    for (const [c, sz, dir] of [[P((a0 + a1) / 2, 0.06, t / 2), [a1 - a0, 0.1, lt], u3], [P((a0 + a1) / 2, lh - 0.05, t / 2), [a1 - a0, 0.1, lt], u3],
+      [P(a0 + 0.04, lh / 2, t / 2), [lh, 0.08, lt], [0, 1, 0]], [P(a1 - 0.04, lh / 2, t / 2), [lh, 0.08, lt], [0, 1, 0]]]) box(LG, 'doorWood', c, sz, dir, { up: dir[1] ? u3 : [0, 1, 0] });
+    planar(LG, 'saunaGlass', [[a0 + 0.08, 0.11], [a1 - 0.08, 0.11], [a1 - 0.08, lh - 0.1], [a0 + 0.08, lh - 0.1]], (ss, yy) => P(ss, yy, t / 2), nOut);
+    planar(LG, 'saunaGlass', [[a0 + 0.08, 0.11], [a1 - 0.08, 0.11], [a1 - 0.08, lh - 0.1], [a0 + 0.08, lh - 0.1]], (ss, yy) => P(ss, yy, t / 2), nOut.map((v) => -v));
+  } else {
+    box(LG, 'doorWood', P((a0 + a1) / 2, lh / 2 + 0.008, t / 2), [a1 - a0, lh, lt], u3, { up: [0, 1, 0], uvScale: 1 / TILE.lining });
+  }
+  for (const d of [t / 2 - lt / 2 - 0.03, t / 2 + lt / 2 + 0.03]) box(LG, 'steel', P(a1 - 0.08, 1.0, d), [0.12, 0.02, 0.02], u3);
 }

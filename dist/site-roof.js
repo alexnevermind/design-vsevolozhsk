@@ -131,9 +131,9 @@ export function roofPlane(G, pl, { thick = 0.28, quality = 'high', gutters = [],
     const ml = Math.hypot(...m2);
     const out3 = norm(add([0, 0, 0], [pl.A, m2[0] / ml], [pl.D, m2[1] / ml]));
     if (kind === 'eave') {
-      // Лобовая доска 200 мм (белая) под краем основы и капельник черепицы.
+      // Лобовая доска 200 мм (белая, слот fascia — материал наличников) под краем основы и капельник черепицы.
       const under = add(mid, [pl.N, -thick]);
-      box(G, 'trim', add(under, [[0, -1, 0], 0.09], [out3, 0.012]), [L, 0.2, 0.025], dir, { up: [0, 1, 0] });
+      box(G, 'fascia', add(under, [[0, -1, 0], 0.09], [out3, 0.012]), [L, 0.2, 0.025], dir, { up: [0, 1, 0] });
       box(G, 'roof', add(mid, [pl.N, -0.01], [out3, 0.03]), [L, 0.05, 0.008], dir, { up: [0, 1, 0] });
       if (snow) {
         // Снегозадержатель: две трубки Ø 25 мм на кронштейнах в 0,4 м от карниза.
@@ -152,7 +152,7 @@ export function roofPlane(G, pl, { thick = 0.28, quality = 'high', gutters = [],
       if (gutters.includes(i)) gutterRun(G, add(A3, [pl.N, -thick * 0.5], [out3, 0.08], [[0, 1, 0], -0.07]), add(B3, [pl.N, -thick * 0.5], [out3, 0.08], [[0, 1, 0], -0.07]));
     } else if (kind === 'rake') {
       // Ветровая доска (белая) по торцу основы и торцевая планка (графит) по краю покрытия.
-      box(G, 'trim', add(mid, [pl.N, -thick / 2 - 0.02], [out3, 0.012]), [L, thick + 0.18, 0.025], dir, { up: out3 });
+      box(G, 'fascia', add(mid, [pl.N, -thick / 2 - 0.02], [out3, 0.012]), [L, thick + 0.18, 0.025], dir, { up: out3 });
       box(G, 'roof', add(mid, [pl.N, 0.03], [out3, -0.04]), [L, 0.07, 0.12], dir, { up: pl.N });
     } else if (kind === 'wall') {
       box(G, 'roof', add(mid, [pl.N, 0.04], [out3, -0.06]), [L, 0.02, 0.14], dir, { up: pl.N });
@@ -284,4 +284,47 @@ export function gableRoof(G, { rect, ridgeAxis, ridgeTop, pitch, over, barge = o
   // Низ основы на линии наружной грани стены (под карнизом) и над серединой.
   const underAt = (dist) => ridgeTop - dist * tan - thick / cos;
   return { planes, tan, underAt, mid, half, ridgeAxis, a0, a1 };
+}
+
+// Потолок под скатом (интерьер): контур помещения в плане (выпуклый, локальные XZ) отсекается проекцией
+// ската; поверхность — на gap ниже низа основы кровли, обшивка ламелями вниз по скату.
+export function ceilingUnder(G, key, pl, polyXZ, thick, { gap = 0.03, tile = 0.84 } = {}) {
+  const proj = pl.poly.map(([a, s]) => { const p = pl.P(a, s, 0); return [p[0], p[2]]; });
+  const cx = proj.reduce((m, p) => m + p[0], 0) / proj.length, cz = proj.reduce((m, p) => m + p[1], 0) / proj.length;
+  let poly = polyXZ.map((p) => [...p]);
+  for (let i = 0; i < proj.length && poly.length >= 3; i++) {
+    const a = proj[i], b = proj[(i + 1) % proj.length];
+    let ex = -(b[1] - a[1]), ez = b[0] - a[0];
+    if (Math.hypot(ex, ez) < 1e-9) continue;
+    if ((cx - a[0]) * ex + (cz - a[1]) * ez < 0) { ex = -ex; ez = -ez; }
+    const f = (p) => (p[0] - a[0]) * ex + (p[1] - a[1]) * ez;
+    const out = [];
+    for (let k = 0; k < poly.length; k++) {
+      const p = poly[k], q = poly[(k + 1) % poly.length];
+      const fp = f(p), fq = f(q);
+      if (fp >= -1e-9) out.push(p);
+      if ((fp >= -1e-9) !== (fq >= -1e-9)) { const t = fp / (fp - fq); out.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]); }
+    }
+    poly = out;
+  }
+  if (poly.length < 3) return;
+  const N = pl.N;
+  const yAt = (x, z) => pl.O[1] - (N[0] * (x - pl.O[0]) + N[2] * (z - pl.O[2])) / N[1] - (thick + gap) / N[1];
+  const mb = G.get(key);
+  const base = mb.vertexCount;
+  const down = N.map((v) => -v);
+  for (const [x, z] of poly) {
+    const y = yAt(x, z);
+    const d = [x - pl.O[0], y - pl.O[1], z - pl.O[2]];
+    const a = d[0] * pl.A[0] + d[1] * pl.A[1] + d[2] * pl.A[2];
+    const s = d[0] * pl.D[0] + d[1] * pl.D[1] + d[2] * pl.D[2];
+    mb.vertex([x, y, z], down, [a / tile, s / tile], 1);
+  }
+  for (let k = 1; k + 1 < poly.length; k++) {
+    const p0 = poly[0], p1 = poly[k], p2 = poly[k + 1];
+    const cr = (p1[0] - p0[0]) * (p2[1] - p0[1]) - (p1[1] - p0[1]) * (p2[0] - p0[0]);
+    // Нормаль вниз: при взгляде снизу обход по часовой в XZ (y вверх) — проверяем знак.
+    if (cr > 0) mb.idx.push(base, base + k, base + k + 1);
+    else mb.idx.push(base, base + k + 1, base + k);
+  }
 }

@@ -5,6 +5,8 @@ import * as THREE from 'three';
 import { formatHour, phaseLabel, PREVIEW_TIMES } from './solar.js';
 import { encodeHash, newSite } from './site-state.js';
 import { SITE, BUILDING } from './site-data.js';
+import { FACADES } from './site-arch.js';
+import { ROOMS } from './site-edit.js';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (v, d = 1) => v.toFixed(d).replace('.', ',');
@@ -76,18 +78,70 @@ export class SiteUI {
   }
 
   renderPanel() {
+    if (this.app.mode === 'interior') { this.renderInteriorPanel(); return; }
     const body = $('side-body');
     body.innerHTML = `
       <div class="bld-list" role="list">
         ${ENTRIES.map((e) => `<button class="bld" role="listitem" data-focus="${e.id}" aria-pressed="${this.focus === e.id}">${ICONS[e.id]}<strong>${esc(e.name)}</strong><span>${esc(e.sub)}</span></button>`).join('')}
       </div>
+      <div class="facade-pick" role="group" aria-label="Отделка фасадов">
+        <span class="pick-title">Фасады всех построек</span>
+        <div class="seg">${Object.entries(FACADES).map(([id, f]) => `<button data-facade="${id}" aria-pressed="${this.state.facade === id}" title="${esc(f.note)}"><i class="sw sw-${id}"></i>${esc(f.label)}</button>`).join('')}</div>
+      </div>
       <label class="check clear-view"><input type="checkbox" id="clear-view" ${this.app.settings.clearView ? 'checked' : ''}> Не заслонять постройки деревьями</label>
-      <div class="views" aria-label="Виды">${SPOTS.map((s) => `<button data-spot="${s.id}">${esc(s.label)}</button>`).join('')}<button data-walk="1">Прогулка от калитки</button></div>
-      <p class="site-facts">Север — вверх плана, солнце — для Всеволожска (60,0° с. ш.). Все постройки на ж/б сваях, пол на <b>0,25 м</b> выше спланированной земли. Деревья — по плану, высоты по диаметру ствола. Интерьеры — следующий этап.</p>`;
+      <div class="views" aria-label="Виды">${SPOTS.map((s) => `<button data-spot="${s.id}">${esc(s.label)}</button>`).join('')}<button data-walk="1">Прогулка от калитки</button><button data-inside="1">Внутри построек</button></div>
+      <p class="site-facts">Север — вверх плана, солнце — для Всеволожска (60,0° с. ш.). Все постройки на ж/б сваях, пол на <b>0,25 м</b> выше спланированной земли. Деревья — по плану, высоты по диаметру ствола. Внутри — вертикальная имитация бруса, пол — тёмно-серый ламинат.</p>`;
     body.querySelectorAll('[data-focus]').forEach((b) => b.addEventListener('click', () => this.app.focusOn(b.dataset.focus)));
     body.querySelectorAll('[data-spot]').forEach((b) => b.addEventListener('click', () => this.app.showSpot(b.dataset.spot)));
     body.querySelector('[data-walk]').addEventListener('click', () => this.app.setMode('walk'));
+    body.querySelector('[data-inside]').addEventListener('click', () => this.app.enterInterior(this.focus !== 'site' ? this.focus : 'guest', 0));
+    body.querySelectorAll('[data-facade]').forEach((b) => b.addEventListener('click', () => {
+      const id = b.dataset.facade;
+      if (this.state.facade !== id) this.app.store.commit((s) => { s.facade = id; }, `Фасады: ${FACADES[id].label.toLowerCase()}`);
+    }));
     $('clear-view').addEventListener('change', (e) => { this.app.settings.clearView = e.target.checked; this.app.updateTreeClearance(); this.app.invalidate(); });
+  }
+
+  // Режим «Внутри»: постройка, этаж (у гостевого дома — мансарда), помещения, выбранный предмет.
+  renderInteriorPanel() {
+    const body = $('side-body');
+    const I = this.app.interior;
+    const rooms = Object.entries(ROOMS).filter(([k, r]) => k.startsWith(`${I.bid}:`) && r.level === I.level);
+    body.innerHTML = `
+      <div class="bld-list" role="list">
+        ${ENTRIES.filter((e) => e.id !== 'site').map((e) => `<button class="bld" role="listitem" data-ibld="${e.id}" aria-pressed="${I.bid === e.id}">${ICONS[e.id]}<strong>${esc(e.name)}</strong><span>${esc(e.sub)}</span></button>`).join('')}
+      </div>
+      ${I.bid === 'guest' ? `<div class="seg levels" role="group" aria-label="Этаж"><button data-level="0" aria-pressed="${I.level === 0}">1 этаж</button><button data-level="1" aria-pressed="${I.level === 1}">Мансарда</button></div>` : ''}
+      <div class="room-list" role="list">${rooms.map(([k, r]) => `<button role="listitem" data-room="${k.split(':')[1]}" aria-pressed="${I.room === k.split(':')[1]}"><span>${esc(r.name)}</span><b>${fmt(r.area, 1)} м²</b></button>`).join('')}</div>
+      <div class="item-box" id="item-box" hidden>
+        <strong id="item-name"></strong>
+        <div class="item-actions"><button data-rot="-45" title="Повернуть против часовой">↺ 45°</button><button data-rot="45" title="Повернуть по часовой">↻ 45°</button><button data-reset="1">На место</button></div>
+      </div>
+      <p class="site-facts">Мебель — по листам: нажмите на предмет и тяните по полу (в пределах помещения), колесо при переносе — поворот на 45°. Печи, полок и очаг встроены. Отделка: стены и потолки — вертикальная имитация бруса, пол — тёмно-серый ламинат, санузлы и сауна — керамогранит.</p>
+      <div class="views"><button data-walkin="1">Прогулка внутри</button><button data-out="1">Вернуться к участку</button></div>`;
+    body.querySelectorAll('[data-ibld]').forEach((b) => b.addEventListener('click', () => this.app.enterInterior(b.dataset.ibld, 0)));
+    body.querySelectorAll('[data-level]').forEach((b) => b.addEventListener('click', () => this.app.enterInterior(I.bid, Number(b.dataset.level))));
+    body.querySelectorAll('[data-room]').forEach((b) => b.addEventListener('click', () => this.app.enterInterior(I.bid, I.level, b.dataset.room)));
+    body.querySelectorAll('[data-rot]').forEach((b) => b.addEventListener('click', () => this.app.editor.rotate(Number(b.dataset.rot))));
+    body.querySelector('[data-reset]').addEventListener('click', () => this.app.editor.reset());
+    body.querySelector('[data-walkin]').addEventListener('click', () => this.app.setMode('walk', { walk: { inside: I.bid, level: I.level, room: I.room } }));
+    body.querySelector('[data-out]').addEventListener('click', () => this.app.setMode('site'));
+    this.onItemSelect(this.app.editor?.selected?.userData.item ?? null);
+  }
+
+  onInterior() {
+    this.renderPanel();
+    const I = this.app.interior;
+    $('place-label').textContent = `${BUILDING[I.bid].name}${I.bid === 'guest' ? (I.level ? ' · мансарда' : ' · 1 этаж') : ''}`;
+  }
+
+  onItemSelect(item) {
+    const box = $('item-box');
+    if (!box) return;
+    box.hidden = !item;
+    if (!item) return;
+    $('item-name').textContent = item.fixed ? `${item.label} (встроено)` : item.label;
+    box.querySelectorAll('button').forEach((b) => { b.disabled = !!item.fixed; });
   }
 
   onFocus(id) {
@@ -99,10 +153,13 @@ export class SiteUI {
 
   onModeChange(mode) {
     for (const b of document.querySelectorAll('.modes button')) b.setAttribute('aria-selected', String(b.dataset.mode === mode));
+    this.renderPanel();
+    if (mode !== 'interior') this.onFocus(this.focus);
   }
 
   refresh() {
     this.syncSunInputs();
+    document.querySelectorAll('[data-facade]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.facade === this.state.facade)));
   }
 
   bindCamera() {

@@ -829,6 +829,164 @@ def make_water():
     save("water_normal", normal_from_height(h, 2.5), "data", meta={"tile": [2.0, 2.0]})
 
 
+def make_plaster():
+    """Декоративная фасадная штукатурка «короед»: бороздки от зерна в разных направлениях и мелкая
+    зернистость (тайл 0,96 м — как у фасадной доски, развёртка стен общая)."""
+    print("Декоративная штукатурка")
+    n = 1024
+    u, v = grid(n)
+    rng = np.random.default_rng(26101)
+    # Бороздки: короткие штрихи (след зерна под тёркой) — сумма анизотропных шумов в нескольких направлениях.
+    grooves = np.zeros((n, n))
+    for i, ang in enumerate([0.0, 0.7, 1.4, 2.1, 2.8]):
+        f = fnoise(n, 26110 + i, beta=0.9, fmin=n // 24, fmax=n // 3, aniso=(1.0 + 5.0 * abs(math.cos(ang)), 1.0 + 5.0 * abs(math.sin(ang))))
+        grooves = np.minimum(grooves, -smoothstep(0.35, 0.75, f)) if i else -smoothstep(0.35, 0.75, f)
+    grain = fnoise(n, 26120, beta=0.3, fmin=n // 6, fmax=n // 2)
+    lumps = fnoise(n, 26121, beta=1.8, fmin=6, fmax=80)
+    height = 0.9 * grooves + 0.25 * grain + 0.2 * lumps
+    tone = 0.94 + 0.02 * lumps + 0.012 * grain + 0.08 * grooves
+    rgb = np.stack([tone, tone * 0.985, tone * 0.965], -1)
+    save("plaster_albedo", np.clip(rgb, 0, 1), "color", meta={"tile": [0.96, 0.96], "mean": float(rgb.mean())})
+    save("plaster_normal", normal_from_height(height, 7.0), "data", meta={"tile": [0.96, 0.96]})
+    rough = 0.9 + 0.05 * grooves - 0.02 * lumps
+    save("plaster_rough", gray3(np.clip(rough, 0, 1)), "data", meta={"tile": [0.96, 0.96]})
+    del u, v, rng
+
+
+def make_brick():
+    """Облицовочный кирпич цоколя: красно-коричневый, 4 кирпича по ширине и 13 рядов на 1 м (кирпич
+    240 × 67, шов 10 мм), перевязка в полкирпича, утопленный светлый шов (тайл 1,0 м)."""
+    print("Кирпич цоколя")
+    n = 1024
+    u, v = grid(n)
+    rows, cols = 13, 4
+    r = np.floor(v * rows).astype(int)
+    fv = v * rows - r
+    xu = u * cols + 0.5 * (r % 2)
+    c = np.floor(xu).astype(int) % cols
+    fu = xu - np.floor(xu)
+    pid = r * cols + c
+    rng = np.random.default_rng(27101)
+    k = rows * cols
+    tone = rng.uniform(0.82, 1.12, k)[pid]
+    hue = rng.uniform(-0.05, 0.05, k)[pid]
+    burnt = (rng.random(k) < 0.12)[pid]
+    # Шов 10 мм: по ширине модуля 250 мм — 0,04; по высоте модуля 76,9 мм — 0,13.
+    eu = np.minimum(fu, 1 - fu) * 250
+    ev = np.minimum(fv, 1 - fv) * 76.9
+    e = np.minimum(eu, ev)
+    joint = 1 - smoothstep(4.0, 5.5, e)
+    edge = smoothstep(5.0, 9.0, e)
+    mott = fnoise(n, 27102, beta=1.8, fmin=4, fmax=90)
+    sand = fnoise(n, 27103, beta=0.3, fmin=n // 8, fmax=n // 2)
+    base = np.stack([0.50 + hue, 0.29 + hue * 0.4, 0.20 - hue * 0.3], -1) * (tone * (0.92 + 0.08 * mott + 0.04 * sand))[..., None]
+    base = np.where(burnt[..., None], base * np.array([0.72, 0.68, 0.70]), base)
+    base = base * (0.9 + 0.1 * edge[..., None])
+    mortar = np.array([0.70, 0.66, 0.60]) * (0.92 + 0.08 * sand[..., None])
+    rgb = base * (1 - joint[..., None]) + mortar * joint[..., None]
+    height = 0.7 * edge - 0.9 * joint + 0.06 * mott + 0.05 * sand
+    save("brick_albedo", np.clip(rgb, 0, 1), "color", meta={"tile": [1.0, 1.0], "mean": float(rgb.mean())})
+    save("brick_normal", normal_from_height(height, 7.0), "data", meta={"tile": [1.0, 1.0]})
+    rough = 0.82 + 0.1 * joint - 0.04 * mott
+    save("brick_rough", gray3(np.clip(rough, 0, 1)), "data", meta={"tile": [1.0, 1.0]})
+
+
+def make_timber_lining():
+    """Имитация бруса (вагонка под брус) вертикально: ламель 140 мм с полукруглыми фасками и узким швом,
+    светлая сосна под прозрачным лаком (тайл 0,84 м — 6 ламелей)."""
+    print("Имитация бруса")
+    n = 1024
+    u, v = grid(n)
+    boards = 6
+    x = u * boards
+    k = np.floor(x).astype(int) % boards
+    f = x - np.floor(x)
+    rng = np.random.default_rng(28101)
+    shift = rng.uniform(0, 1, boards)[k]
+    tone_b = rng.uniform(0.93, 1.06, boards)[k]
+    # Годичные слои вдоль ламели (по v) с волной, сучки, поры.
+    # Тангенциальный распил: «арки» годичных слоев вдоль ламели (фаза — парабола по ширине), шаг неравный.
+    wav = 0.9 * fnoise(n, 28102, beta=3.2, fmin=1, fmax=8, aniso=(1.0, 4.0))
+    cen = 0.5 + 0.25 * (shift - 0.5)
+    arch = (np.abs(f - cen) * 2.2) ** 1.6
+    ph = 5.5 * arch + 2.0 * np.sin(2 * np.pi * (v * (1 + (k % 3)) + shift)) + wav * 1.5 + shift * 7
+    rings = np.sin(2 * np.pi * ph) * 0.5 + 0.5 * np.sin(2 * np.pi * ph * 1.97 + 1.3)
+    late = smoothstep(0.45, 0.95, rings) * (0.6 + 0.4 * smoothstep(-0.5, 0.5, fnoise(n, 28105, beta=2.0, fmin=2, fmax=30)))
+    fib = fnoise(n, 28103, beta=1.1, fmin=6, fmax=n // 2, aniso=(1.0, 30.0))
+    kn = fnoise(n, 28104, beta=1.0, fmin=10, fmax=70)
+    knots = smoothstep(0.86, 0.96, kn)
+    # Профиль бруса: скруглённые фаски ~12 мм на ламели 140 мм и шов 3 мм.
+    edge = np.minimum(f, 1 - f) * 140
+    seam = 1 - smoothstep(1.0, 2.0, edge)
+    bev = smoothstep(1.0, 14.0, edge)
+    crown = np.sqrt(np.clip(bev * (2 - bev), 0, 1))
+    height = 0.9 * crown - 0.8 * seam + 0.04 * fib + 0.02 * late - 0.05 * knots
+    base = np.array([0.80, 0.62, 0.42])
+    shade = (1 - 0.13 * late + 0.05 * fib - 0.35 * knots) * tone_b * (0.82 + 0.18 * crown)
+    rgb = base * shade[..., None]
+    rgb = rgb * (1 - 0.6 * seam[..., None])
+    save("lining_albedo", np.clip(rgb, 0, 1), "color", meta={"tile": [0.84, 0.84], "mean": float(rgb.mean())})
+    save("lining_normal", normal_from_height(height, 8.0), "data", meta={"tile": [0.84, 0.84]})
+    rough = 0.5 + 0.12 * late + 0.2 * seam - 0.05 * crown
+    save("lining_rough", gray3(np.clip(rough, 0, 1)), "data", meta={"tile": [0.84, 0.84]})
+
+
+def make_laminate():
+    """Ламинат тёмно-серый «под дуб»: доска 193 мм, длина = тайлу 1,158 м со сдвигом рядов на 1/3, фаска
+    4V, рисунок дуба приглушён (тайл 1,158 м — 6 досок)."""
+    print("Ламинат")
+    n = 1024
+    u, v = grid(n)
+    rows = 6
+    r = np.floor(v * rows).astype(int)
+    fv = v * rows - r
+    off = ((r * 37) % 3) / 3.0
+    xu = u + off
+    c = np.floor(xu).astype(int)
+    fu = xu - np.floor(xu)
+    pid = (r * 3 + c) % 18
+    rng = np.random.default_rng(29101)
+    tone = rng.uniform(0.86, 1.12, 18)[pid]
+    shift = rng.uniform(0, 1, 18)[pid]
+    wav = 0.7 * fnoise(n, 29102, beta=3.0, fmin=1, fmax=10, aniso=(5.0, 1.0))
+    rings = np.sin(2 * np.pi * ((fv - 0.5) * 6 + wav + shift * 4))
+    late = smoothstep(0.5, 0.95, rings)
+    fib = fnoise(n, 29103, beta=1.1, fmin=6, fmax=n // 2, aniso=(30.0, 1.0))
+    eu = np.minimum(fu, 1 - fu) * 1158
+    ev = np.minimum(fv, 1 - fv) * 193
+    e = np.minimum(eu, ev)
+    bevel = 1 - smoothstep(0.5, 3.0, e)
+    height = -0.8 * bevel + 0.04 * fib + 0.03 * late
+    g = (0.30 - 0.05 * late + 0.02 * fib) * tone
+    rgb = np.stack([g * 1.0, g * 1.0, g * 1.03], -1) * (1 - 0.45 * bevel[..., None])
+    save("laminate_albedo", np.clip(rgb, 0, 1), "color", meta={"tile": [1.158, 1.158], "mean": float(rgb.mean())})
+    save("laminate_normal", normal_from_height(height, 6.0), "data", meta={"tile": [1.158, 1.158]})
+    rough = 0.55 + 0.1 * late + 0.15 * bevel
+    save("laminate_rough", gray3(np.clip(rough, 0, 1)), "data", meta={"tile": [1.158, 1.158]})
+
+
+def make_tile():
+    """Керамогранит 600 × 600 тёмно-серый матовый с тонким швом 2 мм (тайл 1,2 м) — мокрые помещения."""
+    print("Керамогранит")
+    n = 1024
+    u, v = grid(n)
+    cells = 2
+    fu = (u * cells) % 1.0
+    fv = (v * cells) % 1.0
+    pid = (np.floor(v * cells) * cells + np.floor(u * cells)).astype(int)
+    rng = np.random.default_rng(30101)
+    tone = rng.uniform(0.95, 1.05, cells * cells)[pid]
+    e = np.minimum(np.minimum(fu, 1 - fu), np.minimum(fv, 1 - fv)) * 600
+    joint = 1 - smoothstep(0.8, 1.4, e)
+    cloud = fnoise(n, 30102, beta=2.2, fmin=2, fmax=60)
+    speck = fnoise(n, 30103, beta=0.2, fmin=n // 6, fmax=n // 2)
+    g = (0.27 + 0.02 * cloud + 0.01 * speck) * tone
+    rgb = np.stack([g, g, g * 1.02], -1) * (1 - joint[..., None]) + np.array([0.42, 0.41, 0.40]) * joint[..., None]
+    height = -joint + 0.02 * speck
+    save("tile_albedo", np.clip(rgb, 0, 1), "color", meta={"tile": [1.2, 1.2], "mean": float(rgb.mean())})
+    save("tile_normal", normal_from_height(height, 4.0), "data", meta={"tile": [1.2, 1.2]})
+
+
 GENERATORS = {
     "woods": lambda: make_woods(),
     "fabric": lambda: make_fabric(),
@@ -848,6 +1006,11 @@ GENERATORS = {
     "stucco": lambda: make_stucco(),
     "rubber": lambda: make_rubber(),
     "water": lambda: make_water(),
+    "plaster": lambda: make_plaster(),
+    "brick": lambda: make_brick(),
+    "lining": lambda: make_timber_lining(),
+    "laminate": lambda: make_laminate(),
+    "tile": lambda: make_tile(),
 }
 
 

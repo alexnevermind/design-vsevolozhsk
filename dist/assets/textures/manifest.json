@@ -476,6 +476,137 @@
     2.0,
     2.0
    ]
+  },
+  "plaster_albedo": {
+   "file": "plaster_albedo.webp",
+   "size": 1024,
+   "kind": "color",
+   "tile": [
+    0.96,
+    0.96
+   ],
+   "mean": 0.9214772780953681
+  },
+  "plaster_normal": {
+   "file": "plaster_normal.webp",
+   "size": 1024,
+   "kind": "data",
+   "tile": [
+    0.96,
+    0.96
+   ]
+  },
+  "plaster_rough": {
+   "file": "plaster_rough.webp",
+   "size": 1024,
+   "kind": "data",
+   "tile": [
+    0.96,
+    0.96
+   ]
+  },
+  "brick_albedo": {
+   "file": "brick_albedo.webp",
+   "size": 1024,
+   "kind": "color",
+   "tile": [
+    1.0,
+    1.0
+   ],
+   "mean": 0.3341026251847777
+  },
+  "brick_normal": {
+   "file": "brick_normal.webp",
+   "size": 1024,
+   "kind": "data",
+   "tile": [
+    1.0,
+    1.0
+   ]
+  },
+  "brick_rough": {
+   "file": "brick_rough.webp",
+   "size": 1024,
+   "kind": "data",
+   "tile": [
+    1.0,
+    1.0
+   ]
+  },
+  "lining_albedo": {
+   "file": "lining_albedo.webp",
+   "size": 1024,
+   "kind": "color",
+   "tile": [
+    0.84,
+    0.84
+   ],
+   "mean": 0.5888595115470905
+  },
+  "lining_normal": {
+   "file": "lining_normal.webp",
+   "size": 1024,
+   "kind": "data",
+   "tile": [
+    0.84,
+    0.84
+   ]
+  },
+  "lining_rough": {
+   "file": "lining_rough.webp",
+   "size": 1024,
+   "kind": "data",
+   "tile": [
+    0.84,
+    0.84
+   ]
+  },
+  "laminate_albedo": {
+   "file": "laminate_albedo.webp",
+   "size": 1024,
+   "kind": "color",
+   "tile": [
+    1.158,
+    1.158
+   ],
+   "mean": 0.2891861435588725
+  },
+  "laminate_normal": {
+   "file": "laminate_normal.webp",
+   "size": 1024,
+   "kind": "data",
+   "tile": [
+    1.158,
+    1.158
+   ]
+  },
+  "laminate_rough": {
+   "file": "laminate_rough.webp",
+   "size": 1024,
+   "kind": "data",
+   "tile": [
+    1.158,
+    1.158
+   ]
+  },
+  "tile_albedo": {
+   "file": "tile_albedo.webp",
+   "size": 1024,
+   "kind": "color",
+   "tile": [
+    1.2,
+    1.2
+   ],
+   "mean": 0.26810921473515276
+  },
+  "tile_normal": {
+   "file": "tile_normal.webp",
+   "size": 1024,
+   "kind": "data",
+   "tile": [
+    1.2,
+    1.2
+   ]
   }
  }
 }

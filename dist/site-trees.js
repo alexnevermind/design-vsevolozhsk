@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rng } from './geometry.js';
-import { SITE, groundY, insideSite, SITE_CENTER } from './site-data.js';
+import { SITE, SRC, BUILDING, groundY, floorY, insideSite, SITE_CENTER } from './site-data.js';
 import { buildPineVariant, foliageMaterial, tube, foliageCard, buildTreeline } from './forest.js';
 
 export const PINE_SEEDS = [7103, 7422, 7741];
@@ -174,6 +174,79 @@ export function backdropTrees(count) {
   return list;
 }
 
+// Объёмы построек под кровлей в мировых координатах: хвоя и ветви внутри не рисуются (ветки елей у стен
+// не проходят в помещения; снаружи эта часть кроны и так скрыта стенами и кровлей).
+// A — прямоугольник x0, z0, x1, z1 (у шестигранника — центр и апофема); B — низ, конёк, tg уклона, тип:
+// 0 — конёк вдоль X (по середине z), 1 — вдоль Z, 2 — шестигранник (высота убывает от центра).
+export function buildingVolumes() {
+  const vols = [];
+  const DEG = Math.PI / 180;
+  const rect = (poly) => [Math.min(...poly.map((p) => p[0])), Math.min(...poly.map((p) => p[1])), Math.max(...poly.map((p) => p[0])), Math.max(...poly.map((p) => p[1]))];
+  const gable = (poly, ridgeY, pitch, fy, alongX) => vols.push({ A: rect(poly), B: [fy - 0.5, ridgeY, Math.tan(pitch * DEG), alongX ? 0 : 1] });
+  const G = SRC.guest.heights, gy = floorY('guest');
+  const [main, link, wing] = BUILDING.guest.footprint;
+  const ridgeAlongX = (r) => Math.abs(r.ridge[1][0] - r.ridge[0][0]) > Math.abs(r.ridge[1][1] - r.ridge[0][1]);
+  const roof = (v) => BUILDING.guest.roofs.find((r) => r.volume === v);
+  const linkHalf = (SRC.guest.volumes[1].rect[3] - SRC.guest.volumes[1].rect[1]) / 2000;
+  gable(main, gy + G.main.ridgeTop / 1000, G.main.pitch, gy, ridgeAlongX(roof('main')));
+  gable(wing, gy + G.wing.ridgeTop / 1000, G.wing.pitch, gy, ridgeAlongX(roof('wing')));
+  gable(link, gy + G.link.wall / 1000 + linkHalf * Math.tan(G.link.pitch * DEG) + 0.4, G.link.pitch, gy, ridgeAlongX(roof('link')));
+  const sh = SRC.garage.shed, ry = floorY('garage');
+  gable(BUILDING.garage.footprint[0], ry + sh.wallTop / 1000 + (sh.rect[2] - sh.rect[0]) / 2000 * Math.tan(sh.pitch * DEG) + 0.3, sh.pitch, ry, ridgeAlongX(BUILDING.garage.roofs[0]));
+  const K = SRC.grill, ky = floorY('grill');
+  const F = (K.hexagon.vertexR / 1000) * Math.cos(30 * DEG);
+  const o = BUILDING.grill.origin;
+  vols.push({ A: [o[0], o[1], F, 0], B: [ky - 0.5, ky + K.wallTop / 1000 + F * Math.tan(K.roof.pitch * DEG) + 0.3, Math.tan(K.roof.pitch * DEG), 2] });
+  return vols;
+}
+const VOLUMES = buildingVolumes();
+const VOL_UNIFORMS = {
+  uVolA: { value: VOLUMES.map((v) => new THREE.Vector4(...v.A)) },
+  uVolB: { value: VOLUMES.map((v) => new THREE.Vector4(...v.B)) },
+};
+// Отбрасывание фрагментов дерева внутри объёмов построек (видимые материалы и материал глубины теней).
+function clipToBuildings(m) {
+  const prev = m.onBeforeCompile;
+  const prevKey = m.customProgramCacheKey?.bind(m);
+  m.onBeforeCompile = (shader, renderer) => {
+    prev?.call(m, shader, renderer);
+    Object.assign(shader.uniforms, VOL_UNIFORMS);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vTreeW;')
+      .replace('#include <project_vertex>', `#include <project_vertex>
+        {
+          vec4 tw = vec4( transformed, 1.0 );
+          #ifdef USE_INSTANCING
+            tw = instanceMatrix * tw;
+          #endif
+          vTreeW = ( modelMatrix * tw ).xyz;
+        }`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+        varying vec3 vTreeW;
+        uniform vec4 uVolA[ ${VOLUMES.length} ];
+        uniform vec4 uVolB[ ${VOLUMES.length} ];`)
+      .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+        for ( int i = 0; i < ${VOLUMES.length}; i ++ ) {
+          vec4 a = uVolA[ i ], b = uVolB[ i ];
+          if ( vTreeW.y < b.x ) continue;
+          float d;
+          if ( b.w > 1.5 ) {
+            vec2 q = vTreeW.xz - a.xy;
+            d = max( abs( q.x ), max( abs( dot( q, vec2( 0.5, 0.8660254 ) ) ), abs( dot( q, vec2( -0.5, 0.8660254 ) ) ) ) );
+            if ( d > a.z ) continue;
+          } else {
+            if ( vTreeW.x < a.x || vTreeW.x > a.z || vTreeW.z < a.y || vTreeW.z > a.w ) continue;
+            d = b.w < 0.5 ? abs( vTreeW.z - 0.5 * ( a.y + a.w ) ) : abs( vTreeW.x - 0.5 * ( a.x + a.z ) );
+          }
+          if ( vTreeW.y < b.y - d * b.z ) discard;
+        }`);
+  };
+  m.customProgramCacheKey = () => `${prevKey ? prevKey() : ''}|bvol`;
+  m.needsUpdate = true;
+  return m;
+}
+
 export function buildSiteTrees(lib, { backdrop = 360, detail = 'near' } = {}) {
   const group = new THREE.Group();
   group.name = 'trees';
@@ -184,15 +257,16 @@ export function buildSiteTrees(lib, { backdrop = 360, detail = 'near' } = {}) {
   const birchLeaves = foliageMaterial(lib.leaves());
   birchLeaves.color = new THREE.Color(0.72, 0.86, 0.48);
   birchLeaves.name = 'birchLeaves';
-  const bark = lib.bark();
-  const spruceBark = lib.make('spruceBark', () => {
+  const bark = clipToBuildings(lib.make('treeBark', () => lib.bark().clone()));
+  const spruceBark = clipToBuildings(lib.make('spruceBark', () => {
     const m = lib.bark().clone();
     m.color = new THREE.Color(1.15, 1.08, 1.05);
     return m;
-  });
+  }));
   const birchBark = lib.birchBark().clone();
   birchBark.vertexColors = true;
-  const depthOf = (m) => new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: m.map, alphaTest: m.alphaTest, side: THREE.DoubleSide });
+  for (const m of [needles, spruceNeedles, birchLeaves, birchBark]) clipToBuildings(m);
+  const depthOf = (m) => clipToBuildings(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: m.map, alphaTest: m.alphaTest, side: THREE.DoubleSide }));
   const kinds = {
     pine: { seeds: PINE_SEEDS, build: (seed, d) => buildPineVariant(seed, d, d === 'far' ? {} : { spread: 0.6, crownStart: 0.6 }), bark, leaves: needles },
     spruce: { seeds: SPRUCE_SEEDS, build: buildSpruceVariant, bark: spruceBark, leaves: spruceNeedles },
@@ -200,6 +274,7 @@ export function buildSiteTrees(lib, { backdrop = 360, detail = 'near' } = {}) {
   };
   const planned = plannedTrees();
   const back = backdropTrees(backdrop);
+  const woodDepth = clipToBuildings(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }));
   const shadowOnly = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
   shadowOnly.name = 'treeShadowOnly';
   const visible = [];
@@ -217,10 +292,13 @@ export function buildSiteTrees(lib, { backdrop = 360, detail = 'near' } = {}) {
         // не меняло освещение.
         const trunks = instanced(g.wood, k.bark, items, { shadows: false });
         trunks.name = `trees:${sp}:${v}:wood`;
+        // Ветви ели и берёзы низко, у стен построек: в проходе затенения (AO) они рисуются без отсечения
+        // объёмами построек и оставляли бы след на стенах внутри.
+        if (sp !== 'pine') trunks.userData.excludeAO = true;
         const crowns = instanced(g.leaves, k.leaves, items, { shadows: false });
         crowns.name = `trees:${sp}:${v}:crown`;
         crowns.userData.excludeAO = true;
-        const casters = [instanced(g.wood, shadowOnly, items), instanced(g.leaves, shadowOnly, items, { depthMat: depth })];
+        const casters = [instanced(g.wood, shadowOnly, items, { depthMat: woodDepth }), instanced(g.leaves, shadowOnly, items, { depthMat: depth })];
         for (const c of casters) { c.userData.excludeAO = true; c.name = `trees:${sp}:${v}:shadow`; c.receiveShadow = false; }
         group.add(trunks, crowns, ...casters);
         for (const m of [trunks, crowns]) visible.push({ mesh: m, items, base: m.instanceMatrix.array.slice() });

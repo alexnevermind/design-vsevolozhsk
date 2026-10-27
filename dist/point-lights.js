@@ -4,7 +4,7 @@
 // столбики вдоль дорожки, гирлянда над зоной отдыха и лампы — без пересборки шейдеров и без теней.
 import * as THREE from 'three';
 
-export const PL_COUNT = 10;
+export const PL_COUNT = 16;
 const pool = [];
 export const POINT_LIGHTS = {
   uPLPos: { value: Array.from({ length: PL_COUNT }, () => new THREE.Vector4(0, -999, 0, 1)) },

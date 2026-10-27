@@ -1,10 +1,11 @@
-// Прогулка по участку: ввод как в базе (клавиатура, Pointer Lock, перетаскивание взгляда, сенсорный
-// джойстик), высота глаз — по рельефу, дорожкам и настилу обеденной площадки; препятствия — стены
-// построек, забор, стволы, пруд, купель, кострище, мангал, кусты, опоры навеса и обеденный стол.
-// Внутрь построек — этап 3 (интерьеры): двери пока закрыты.
+// Прогулка по участку и постройкам: ввод как в базе (клавиатура, Pointer Lock, перетаскивание взгляда,
+// сенсорный джойстик), высота глаз — по рельефу, полам этажей, лестнице и настилу обеденной площадки;
+// препятствия — стены с проёмами дверей (двери открываются при подходе), ограждения, мебель, забор,
+// стволы, пруд, купель, кострище, кусты, опоры навеса.
 import * as THREE from 'three';
-import { SITE, BUILDING, groundY, floorY, insideSite } from './site-data.js';
-import { pointInPolygon, distToSegment } from './geometry.js';
+import { SITE, BUILDING, groundY, floorY, insideSite, placer } from './site-data.js';
+import { pointInPolygon, distToSegment, circleObbPush, obb } from './geometry.js';
+import { ROOMS } from './site-edit.js';
 
 export const WALK = { eyeHeight: 1.62, radius: 0.25, speed: 1.45, fastSpeed: 3.2, fov: 62, near: 0.08 };
 const KEYMAP = { KeyW: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b', KeyA: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r' };
@@ -22,11 +23,12 @@ function nearestEdge(x, z, poly) {
   return best;
 }
 
-// Препятствия участка: многоугольники (стены, опоры, стол) и окружности.
-export function walkObstacles(extra = {}) {
+// Препятствия участка: многоугольники (опоры, стол), окружности. Постройки: с данными стен (walkData) —
+// стены с проёмами дверей; без них — пятна построек целиком (как снаружи).
+export function walkObstacles(extra = {}, withBuildings = true) {
   const polys = [];
   const circles = [];
-  for (const b of SITE.buildings) for (const p of b.footprint) polys.push({ poly: p, id: b.id });
+  if (withBuildings) for (const b of SITE.buildings) for (const p of b.footprint) polys.push({ poly: p, id: b.id });
   for (const p of BUILDING.garage.carport.piers) polys.push({ poly: p, id: 'pier' });
   // Обеденный стол со скамьями — прямоугольник 2,6 × 2,1 м по оси площадки.
   {
@@ -49,23 +51,98 @@ export function walkObstacles(extra = {}) {
   return { polys, circles };
 }
 
+// Отрезок толщиной 2h как повёрнутый прямоугольник с плоскими торцами (проём между стенами — полной ширины).
+function segObb(a, b, h, id) {
+  const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1e-6;
+  const u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
+  return { a, b, h, id, obb: obb((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, L, 2 * h, Math.atan2(-u[1], u[0])) };
+}
+
+// Данные построек в координатах участка: отрезки стен (осевые, полутолщина), полы этажей, лестницы,
+// ограждения, стойки.
+function buildingWorld(data) {
+  const walls = [], surfaces = [], rails = [], circles = [];
+  for (const [id, d] of Object.entries(data)) {
+    const at = placer(BUILDING[id]);
+    const W = (x, z) => at(x * 1000, z * 1000);
+    const fy = floorY(id);
+    for (const w of d.walls) {
+      const L = Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]);
+      const u = [(w.b[0] - w.a[0]) / L, (w.b[1] - w.a[1]) / L];
+      const off = [-w.n[0] * w.t / 2, -w.n[1] * w.t / 2];
+      const gaps = [...w.gaps].sort((p, q) => p[0] - q[0]);
+      let s0 = 0;
+      const pieces = [];
+      for (const [g0, g1] of gaps) { if (g0 > s0 + 0.01) pieces.push([s0, g0]); s0 = Math.max(s0, g1); }
+      if (L > s0 + 0.01) pieces.push([s0, L]);
+      for (const [p0, p1] of pieces) {
+        const A = W(w.a[0] + u[0] * p0 + off[0], w.a[1] + u[1] * p0 + off[1]);
+        const B = W(w.a[0] + u[0] * p1 + off[0], w.a[1] + u[1] * p1 + off[1]);
+        walls.push(segObb(A, B, w.t / 2, id));
+      }
+    }
+    for (const sf of d.surfaces) surfaces.push({ poly: sf.poly.map(([x, z]) => W(x, z)), y: fy + sf.y, solid: !!sf.solid, id });
+    for (const r of d.rails) rails.push({ ...segObb(W(...r.a), W(...r.b), 0.04, id), y0: fy + r.y0, y1: fy + r.y1 });
+    for (const p of d.posts) { const c = W(p.x, p.z); circles.push({ x: c[0], z: c[1], r: p.r, id: `${id}-post` }); }
+  }
+  return { walls, surfaces, rails, circles };
+}
+
 export class SiteWalkWorld {
-  constructor(extra) {
-    this.obs = walkObstacles(extra);
+  // extra — кусты; data — walkData() построек (стены, лестницы); items() — мебель: [{ obb, y }] на кадр.
+  constructor(extra = {}, data = null, items = null) {
+    this.obs = walkObstacles(extra, !data);
     this.deck = BUILDING.grill.dining;
-    this.paving = [BUILDING.garage.carport.floor];
+    this.bw = data ? buildingWorld(data) : null;
+    if (this.bw) this.obs.circles.push(...this.bw.circles);
+    this.items = items ?? (() => []);
   }
 
-  // Высота пола под ногами: настил обеденной площадки, иначе рельеф (+3 см на мощении).
-  floorAt(x, z) {
-    if (pointInPolygon(x, z, this.deck)) return floorY('grill') - 0.05;
-    return groundY(x, z) + 0.03;
+  buildingAt(x, z) {
+    for (const b of SITE.buildings) if (b.footprint.some((p) => pointInPolygon(x, z, p))) return b.id;
+    return null;
   }
 
-  blocked(x, z, r = WALK.radius) {
+  // Высота пола под ногами при текущей высоте cur: пол постройки, лестница, мансарда (выше cur не более
+  // чем на 0,4 м), настил обеденной площадки, иначе рельеф (+3 см на мощении).
+  floorAt(x, z, cur = null) {
+    let base;
+    const bid = this.bw ? this.buildingAt(x, z) : null;
+    if (bid) base = floorY(bid);
+    else if (pointInPolygon(x, z, this.deck)) base = floorY('grill') - 0.05;
+    else base = groundY(x, z) + 0.03;
+    if (!this.bw || cur === null) return base;
+    let best = base <= cur + 0.4 ? base : null;
+    for (const sf of this.bw.surfaces) {
+      if (sf.y > cur + 0.4 || (best !== null && sf.y <= best)) continue;
+      if (pointInPolygon(x, z, sf.poly)) best = sf.y;
+    }
+    return best ?? base;
+  }
+
+  // Подъём выше 0,4 м по сплошной ступени или низкая голова под маршем/перекрытием — препятствие
+  // (под открытым маршем просвет считается от подшивки — на 0,3 м ниже проступи).
+  stepBlocked(x, z, cur) {
+    if (!this.bw) return false;
+    for (const sf of this.bw.surfaces) {
+      if (!pointInPolygon(x, z, sf.poly)) continue;
+      const d = sf.y - cur;
+      if (sf.solid && d > 0.4) return true;
+      if (!sf.solid && d > 0.4 && d - 0.3 < 1.95) return true;
+    }
+    return false;
+  }
+
+  blocked(x, z, r = WALK.radius, cur = null) {
     if (!insideSite(x, z) || nearestEdge(x, z, SITE.boundary).d < r + 0.08) return true;
     for (const o of this.obs.polys) if (pointInPolygon(x, z, o.poly) || nearestEdge(x, z, o.poly).d < r) return true;
     for (const c of this.obs.circles) if (Math.hypot(x - c.x, z - c.z) < c.r + r) return true;
+    if (this.bw) {
+      for (const w of this.bw.walls) if (circleObbPush(x, z, r - 0.01, w.obb).hit) return true;
+      const y = cur ?? this.floorAt(x, z);
+      for (const it of this.items()) if (Math.abs(it.y - y) < 1.2 && circleObbPush(x, z, r - 0.02, it.obb).hit) return true;
+      if (this.stepBlocked(x, z, y)) return true;
+    }
     return false;
   }
 
@@ -74,6 +151,9 @@ export class SiteWalkWorld {
     const r = WALK.radius;
     const steps = Math.max(1, Math.ceil(Math.hypot(dx, dz) / 0.04));
     let x = pose.x, z = pose.z;
+    let y = pose.y ?? this.floorAt(x, z);
+    const items = this.bw ? this.items().filter((it) => Math.abs(it.y - y) < 1.2) : [];
+    const rails = this.bw ? this.bw.rails : [];
     for (let s = 0; s < steps; s++) {
       let nx = x + dx / steps, nz = z + dz / steps;
       for (let it = 0; it < 3; it++) {
@@ -104,29 +184,52 @@ export class SiteWalkWorld {
           const k = (c.r + r) / (d || 1);
           nx = c.x + (d ? ddx : 1) * k; nz = c.z + (d ? ddz : 0) * k;
         }
+        if (this.bw) {
+          const segs = [...this.bw.walls, ...rails.filter((q) => y > Math.min(q.y0, q.y1) - 0.6 && y < Math.max(q.y0, q.y1) + 0.6)];
+          for (const w of segs) {
+            const p = circleObbPush(nx, nz, r, w.obb);
+            if (p.hit) { nx += p.nx * p.depth; nz += p.nz * p.depth; }
+          }
+          for (const itm of items) {
+            const p = circleObbPush(nx, nz, r, itm.obb);
+            if (p.hit) { nx += p.nx * p.depth; nz += p.nz * p.depth; }
+          }
+        }
       }
-      // Ступень выше 0,3 м — препятствие (только у края настила и крутых откосов).
-      if (Math.abs(this.floorAt(nx, nz) - this.floorAt(x, z)) > 0.3) break;
-      if (this.blocked(nx, nz, r - 0.01)) break;
-      x = nx; z = nz;
+      const ny = this.floorAt(nx, nz, y);
+      // Ступень выше 0,4 м (снаружи — 0,3 м у края настила и откосов) — препятствие.
+      if (Math.abs(ny - y) > (this.bw ? 0.42 : 0.3) && !(this.bw && ny < y)) break;
+      if (this.bw && ny < y - 0.42 && !this.buildingAt(nx, nz)) break;
+      if (this.blocked(nx, nz, r - 0.01, ny)) break;
+      x = nx; z = nz; y = ny;
     }
-    return { x, z };
+    return { x, z, y };
   }
 
   // Ближайшая свободная точка (по спирали) — старт прогулки.
-  safeSpot(x, z) {
+  safeSpot(x, z, y = null) {
     for (let k = 0; k < 400; k++) {
       const a = k * 2.399, d = Math.sqrt(k) * 0.18;
       const px = x + Math.cos(a) * d, pz = z + Math.sin(a) * d;
-      if (!this.blocked(px, pz)) return { x: px, z: pz };
+      if (!this.blocked(px, pz, WALK.radius, y)) return { x: px, z: pz };
     }
     return null;
   }
 }
 
 // Подписи мест: постройка рядом, площадка, дорожка.
-function placeLabel(x, z) {
+function placeLabel(x, z, y = null) {
   const near = (c, r) => Math.hypot(x - c[0], z - c[1]) < r;
+  for (const b of SITE.buildings) {
+    if (!b.footprint.some((p) => pointInPolygon(x, z, p))) continue;
+    const at = placer(b);
+    // Локальные координаты постройки (обратный поворот).
+    const dx = x - b.origin[0], dz = z - b.origin[1];
+    const lx = dx * at.dirU[0] + dz * at.dirU[1], lz = dx * at.dirV[0] + dz * at.dirV[1];
+    const level = y !== null && y - floorY(b.id) > 1.5 ? 1 : 0;
+    const room = Object.entries(ROOMS).find(([k, r]) => k.startsWith(`${b.id}:`) && r.level === level && pointInPolygon(lx, lz, r.poly));
+    return room ? `${b.name} · ${room[1].name}` : b.name;
+  }
   if (pointInPolygon(x, z, BUILDING.grill.dining)) return 'Обеденная площадка под перголой';
   if (pointInPolygon(x, z, BUILDING.garage.carport.floor)) return 'Навес для двух машин';
   if (near(F.firePit.center, F.firePit.r + 1.2)) return 'Кострище';
@@ -147,11 +250,19 @@ function placeLabel(x, z) {
 }
 
 export class SiteWalk {
-  constructor(app, extra = {}) {
+  constructor(app, extra = {}, data = null) {
     this.app = app;
     this.camera = new THREE.PerspectiveCamera(WALK.fov, 1, WALK.near, 1200);
     this.camera.rotation.order = 'YXZ';
-    this.world = new SiteWalkWorld(extra);
+    // Мебель — повёрнутые прямоугольники по текущему положению (переставляется в режиме «Внутри»).
+    const items = () => (app.furniture ?? []).filter((h) => !['tv'].includes(h.userData.item.type)).map((h) => {
+      const it = h.userData.item;
+      const p = h.parent.localToWorld(new THREE.Vector3(h.position.x, it.yLevel, h.position.z));
+      const ry = h.rotation.y + (h.parent.parent?.rotation.y ?? 0);
+      return { obb: obb(p.x, p.z, it.w, it.d, ry), y: p.y };
+    });
+    this.world = new SiteWalkWorld(extra, data, items);
+    this.doors = [];
     this.active = false;
     this.paused = false;
     this.keys = new Set();
@@ -265,13 +376,51 @@ export class SiteWalk {
   }
 
   // Вход: прежний обзор сохраняется; старт — у калитки или перед выбранной постройкой.
-  enter({ pose = null } = {}) {
+  // Старт внутри постройки: центр помещения (или постройки), этаж level; взгляд — к центру постройки.
+  insidePose(bid, level = 0, room = null) {
+    const part = this.app.buildings.userData.parts[bid];
+    // Без помещения — у входной двери изнутри, лицом в постройку.
+    const ENTRY = { guest: 'GD2', grill: 'KD2', garage: 'HD2' };
+    const door = !room && level === 0 ? part.openings.find((o) => o.id === ENTRY[bid]) : null;
+    if (door) {
+      const x = door.x - door.n[0] * 1.2, z = door.z - door.n[1] * 1.2, y = floorY(bid);
+      return { x, z, y, yaw: this.openYaw(x, z, y, Math.atan2(door.n[0], door.n[1])), pitch: -0.04 };
+    }
+    const key = room ? `${bid}:${room}` : Object.keys(ROOMS).find((k) => k.startsWith(`${bid}:`) && ROOMS[k].level === level);
+    const poly = ROOMS[key]?.poly ?? [[0, 0]];
+    const cx = poly.reduce((m, q) => m + q[0], 0) / poly.length, cz = poly.reduce((m, q) => m + q[1], 0) / poly.length;
+    const w = part.group.localToWorld(new THREE.Vector3(cx, 0, cz));
+    const y = floorY(bid) + (part.levels[level] ?? 0);
+    const b = BUILDING[bid].footprint.flat();
+    const bx = b.reduce((m, q) => m + q[0], 0) / b.length, bz = b.reduce((m, q) => m + q[1], 0) / b.length;
+    const yaw = Math.atan2(-(bx - w.x), -(bz - w.z));
+    return { x: w.x, z: w.z, y, yaw: Number.isFinite(yaw) ? yaw : 0, pitch: -0.05 };
+  }
+
+  // Направление взгляда с наибольшим свободным обзором (до 8 м) с предпочтением prefer: чтобы на входе
+  // в небольшой холл камера смотрела вглубь постройки, а не в стену или центральный столб.
+  openYaw(x, z, y, prefer) {
+    let best = prefer, score = -Infinity;
+    for (let k = 0; k < 32; k++) {
+      const yaw = prefer + (k / 32) * Math.PI * 2;
+      const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+      let d = 0;
+      while (d < 8 && !this.world.blocked(x + fx * (d + 0.1), z + fz * (d + 0.1), 0.12, y)) d += 0.1;
+      const s = Math.min(d, 6) + 1.2 * Math.cos(yaw - prefer);
+      if (s > score) { score = s; best = yaw; }
+    }
+    return Math.atan2(Math.sin(best), Math.cos(best));
+  }
+
+  enter({ pose = null, inside = null, level = 0, room = null } = {}) {
     const app = this.app;
     this.saved = { position: app.camera.position.clone(), target: app.controls.target.clone() };
-    const p = { ...(pose ?? this.startPose()) };
-    const safe = this.world.safeSpot(p.x, p.z);
+    const p = { ...(pose ?? (inside ? this.insidePose(inside, level, room) : this.startPose())) };
+    if (p.y === undefined) p.y = this.world.floorAt(p.x, p.z);
+    const safe = this.world.safeSpot(p.x, p.z, p.y);
     if (safe) { p.x = safe.x; p.z = safe.z; }
     this.pose = { yaw: 0, pitch: 0, ...p };
+    this.doors = Object.values(app.buildings.userData.parts).flatMap((pt) => pt.doors);
     this.eyeY = null;
     this.active = true;
     this.paused = false;
@@ -289,6 +438,9 @@ export class SiteWalk {
   exit() {
     const app = this.app;
     this.active = false;
+    this.closeDoors();
+    app.exposureBoost = 1;
+    app.renderer.shadowMap.needsUpdate = true;
     this.keys.clear();
     this.joy = { id: null, x: 0, y: 0 };
     this.look.id = null;
@@ -317,7 +469,8 @@ export class SiteWalk {
 
   // Высота глаз догоняет пол плавно (ступени, откосы), без рывков.
   apply(dt = 0.016) {
-    const target = this.world.floorAt(this.pose.x, this.pose.z) + WALK.eyeHeight;
+    if (this.pose.y === undefined) this.pose.y = this.world.floorAt(this.pose.x, this.pose.z);
+    const target = this.pose.y + WALK.eyeHeight;
     this.eyeY = this.eyeY == null ? target : this.eyeY + (target - this.eyeY) * Math.min(1, dt * 10);
     this.camera.position.set(this.pose.x, this.eyeY, this.pose.z);
     this.camera.rotation.set(this.pose.pitch, this.pose.yaw, 0, 'YXZ');
@@ -348,21 +501,52 @@ export class SiteWalk {
       changed = r.x !== this.pose.x || r.z !== this.pose.z;
       this.pose.x = r.x;
       this.pose.z = r.z;
+      this.pose.y = r.y;
     }
+    if (this.updateDoors(dt)) changed = true;
     if (this.apply(dt)) changed = true;
+    // Внутри постройки — экспозиция выше (глаз адаптируется к помещению).
+    const inside = this.world.buildingAt(this.pose.x, this.pose.z);
+    const want = inside ? 1.6 : 1;
+    const prevBoost = this.app.exposureBoost ?? 1;
+    this.app.exposureBoost = prevBoost + (want - prevBoost) * Math.min(1, dt * 3);
+    if (Math.abs(this.app.exposureBoost - want) > 0.01) changed = true;
+    this.inside = inside;
     this.updateInfo();
     return changed || this.look.id !== null;
   }
 
+  // Двери открываются, когда до середины створки меньше 1,7 м, и закрываются после ухода.
+  updateDoors(dt) {
+    let moved = false;
+    for (const d of this.doors) {
+      const st = d.userData.door;
+      const mid = d.parent.localToWorld(new THREE.Vector3(st.mid[0], d.position.y, st.mid[1]));
+      const near = Math.hypot(mid.x - this.pose.x, mid.z - this.pose.z) < 1.7 && Math.abs(mid.y - (this.pose.y ?? mid.y)) < 1.2;
+      const target = this.active && near ? st.max : 0;
+      if (Math.abs(st.angle - target) < 1e-3) continue;
+      st.angle += Math.sign(target - st.angle) * Math.min(Math.abs(target - st.angle), dt * 2.6);
+      d.rotation.y = st.sign * st.angle;
+      moved = true;
+    }
+    if (moved) this.app.renderer.shadowMap.needsUpdate = true;
+    return moved;
+  }
+
+  closeDoors() {
+    for (const d of this.doors) { d.userData.door.angle = 0; d.rotation.y = 0; }
+  }
+
   updateInfo() {
-    const text = placeLabel(this.pose.x, this.pose.z);
+    const text = placeLabel(this.pose.x, this.pose.z, this.pose.y);
     if (this.infoEl.textContent !== text) this.infoEl.textContent = text;
   }
 
   info() {
     return {
       active: this.active, paused: this.paused, x: this.pose.x, z: this.pose.z, yaw: this.pose.yaw, pitch: this.pose.pitch,
-      eyeY: this.camera.position.y, floor: this.world.floorAt(this.pose.x, this.pose.z), place: placeLabel(this.pose.x, this.pose.z), fov: this.camera.fov,
+      eyeY: this.camera.position.y, floor: this.pose.y ?? this.world.floorAt(this.pose.x, this.pose.z), place: placeLabel(this.pose.x, this.pose.z, this.pose.y), fov: this.camera.fov, inside: this.inside ?? null,
+      doors: this.doors.filter((d) => d.userData.door.angle > 0.5).map((d) => d.userData.door.id),
     };
   }
 }
