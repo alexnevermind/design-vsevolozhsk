@@ -9,8 +9,8 @@
 
 1. данные + 2D-схема участка + отчёт о нестыковках — **готово, согласовано**;
 2. участок и постройки снаружи в 3D — **готово, согласовано** с доработками (отчёт — `docs/STAGE2.md`);
-3. интерьеры, фасад «штукатурка + кирпич», ночной свет — **готово, ждёт согласования** (`docs/STAGE3.md`);
-4. проверки, кадры, автономный HTML, файл Blender.
+3. интерьеры, фасад «штукатурка + кирпич», ночной свет — **готово, согласовано** (`docs/STAGE3.md`);
+4. проверки, кадры, автономный HTML, файл Blender — **готово, ждёт согласования** (`docs/STAGE4.md`).
 
 ### Данные участка (этап 1)
 
@@ -61,6 +61,23 @@ node --test tests/site-interior.test.mjs
   ограждения; `site-furniture.js` — мебель по листам; `site-lights.js` — фонари у дверей, столбики вдоль
   дорожек, свет помещений; `site-walk.js` — прогулка внутри (двери, лестница, мебель).
 - Фасады всех построек — «Доска» или «Штукатурка и кирпич» (один кирпичный цоколь на все постройки).
+
+### Итоговая поставка (этап 4)
+
+- **Автономный HTML** — `offline/Vsevolozhsk.html` (один файл ≈ 12 МБ: код, стили, Three.js, данные, карты,
+  модель); архив `artifacts/Vsevolozhsk-local.zip` с README, лицензиями и SHA256SUMS. Открывается двойным
+  щелчком без интернета и без установки чего-либо. Дом базы — `offline/base/VSEMDOM.html`, `artifacts/VSEMDOM-local.zip`.
+- **Файл Blender** — `assets-source/vsevolozhsk-site.blend` (Blender 4.3+): та же сцена, что в приложении, —
+  постройки с интерьерами и мебелью, два варианта фасада (коллекции «Фасад 1 · доска» / «Фасад 2 ·
+  штукатурка и кирпич»), рельеф, благоустройство, деревья по плану, фон; сцены «День · 21 июня 13:00» и
+  «Ночь · 23:15» (фонари, свет помещений, огонь); 13 камер видов приложения.
+
+```bash
+npm run package:offline           # offline/Vsevolozhsk.html + ZIP (и дом базы), artifacts/offline-checksums.json
+npm run offline:check             # без сети: file://, фасад, «Внутри», прогулка, PNG, ссылка, SHA-256 (обе поставки)
+npm run export:site               # сцена участка из приложения → artifacts/vsevolozhsk-site.glb + .json
+.venv-blender/bin/python scripts/blender/make_site_blend.py [--render]   # .blend и кадры Cycles
+```
 
 Ниже — описание перенесённой базы (дом VSEMDOM; открывается как `base-house.html`).
 Отличие среды: Chromium для проверок запускается через `scripts/browser-launch.mjs` — если браузер нужной
@@ -157,11 +174,12 @@ docs/                        ASSUMPTIONS.md (принятые предполож
 ```bash
 npm run spec                 # данные из плана + проверка согласованности (--check — без записи)
 npm run site                 # данные участка + docs/SITE_CHECK.md (--check — без записи)
-npm test                     # 76 модульных тестов
+npm test                     # модульные тесты (база и участок)
+npm run site:check           # браузерная проверка участка (этапы 2–3)
 npm run browser:check        # браузерные маршруты (Chromium; нужен playwright)
 npm run screenshots          # кадры приложения
-npm run package:offline      # offline/VSEMDOM.html + artifacts/VSEMDOM-local.zip + offline-checksums.json
-npm run offline:check        # распаковка ZIP, открытие file:// без сети, отделка, прогулка, PNG, SHA-256
+npm run package:offline      # offline/Vsevolozhsk.html, offline/base/VSEMDOM.html, ZIP, offline-checksums.json
+npm run offline:check        # распаковка ZIP, открытие file:// без сети, действия, PNG, SHA-256 (участок и база)
 npm run checks:report        # docs/CHECKS.md из фактических отчётов artifacts/*.json
 npm run check:all            # всё по порядку
 ```
@@ -174,9 +192,11 @@ npm run check:all            # всё по порядку
 
 ```bash
 npm run export:glb           # фактическая архитектура из браузера → artifacts/house-architecture.glb
-npm run assets:blender       # карты, профили, унитаз, assets-source/house.blend
+npm run export:site          # сцена участка из приложения → artifacts/vsevolozhsk-site.glb + .json
+npm run assets:blender       # карты, профили, унитаз, assets-source/house.blend, assets-source/vsevolozhsk-site.blend
 # или по одному: <python с bpy> scripts/blender/make_textures.py | make_architecture.py | make_wc.py
 #                <python с bpy> scripts/blender/make_house_blend.py [--render]   (кадр Cycles)
+#                <python с bpy> scripts/blender/make_site_blend.py [--render]    (кадры Cycles участка)
 ```
 
 Принятые предположения и исправления подписей — `docs/ASSUMPTIONS.md`; итоги проверок — `docs/CHECKS.md`.

@@ -337,7 +337,9 @@ export function opening(G, W, n, t, o, { trim = true, keystone = null, sill = tr
     box(B, key, c3, [l, depth, width], [b3[0] - a3[0], b3[1] - a3[1], b3[2] - a3[2]], { up: nOut, uvScale: 1 });
   };
   const edgeBeam = (p, q, width, depth, key, dd = d0) => edgeBeamIn(G, p, q, width, depth, key, dd);
-  for (let i = 0; i < poly.length; i++) edgeBeam(poly[i], poly[(i + 1) % poly.length], fw, fd, 'frame');
+  // Брусья, сходящиеся в углу, перекрываются: каждый смещён по глубине на доли миллиметра, чтобы
+  // совпадающие грани не давали самозатенения в трассировке (Blender Cycles) и мерцания.
+  for (let i = 0; i < poly.length; i++) edgeBeam(poly[i], poly[(i + 1) % poly.length], fw, fd, 'frame', d0 + i * 0.0006);
   // Импосты: створки не шире 0,95 м (окна) / по числу створок (двери).
   const inner = [s0 + fw, s1 - fw];
   const span = inner[1] - inner[0];
@@ -357,8 +359,8 @@ export function opening(G, W, n, t, o, { trim = true, keystone = null, sill = tr
     }
     return best === -Infinity ? y1 : best;
   };
-  for (const s of cuts) edgeBeam([s - fw / 2, y0 + fw], [s - fw / 2, topAt(s) - fw], fw, fd, 'frame');
-  if (o.transom) for (let i = 0; i < 1; i++) edgeBeam([s0 + fw, o.transom], [s1 - fw, o.transom], fw * 1.6, fd, 'frame');
+  for (const s of cuts) edgeBeam([s - fw / 2, y0 + fw], [s - fw / 2, topAt(s) - fw], fw, fd, 'frame', d0 + 0.0003);
+  if (o.transom) for (let i = 0; i < 1; i++) edgeBeam([s0 + fw, o.transom], [s1 - fw, o.transom], fw * 1.6, fd, 'frame', d0 + 0.0009);
   // Створки дверей: рамка шире (полотно), ручка, стекло. Если у построителя есть G.newLeaf — каждая
   // створка строится в своём построителе с петлёй (открывается в прогулке), иначе — в общем.
   const isDoor = o.kind === 'door' || !!o.door;
@@ -376,7 +378,7 @@ export function opening(G, W, n, t, o, { trim = true, keystone = null, sill = tr
       const rect = rectHole(a0, a1, y0 + fw, lh);
       for (let i = 0; i < 4; i++) {
         const p = rect[i], q = rect[(i + 1) % 4];
-        edgeBeamIn(LG, p, q, i === 0 ? 0.12 : 0.085, 0.065, 'frame', d0 + 0.004);
+        edgeBeamIn(LG, p, q, i === 0 ? 0.12 : 0.085, 0.065, 'frame', d0 + 0.004 + i * 0.0006);
       }
       const hx = hingeAtEnd ? a0 + 0.07 : a1 - 0.07;
       box(LG, 'steel', P(hx, 1.02, d0 - 0.03), [0.13, 0.02, 0.02], [W.u[0], 0, W.u[1]]);
@@ -386,7 +388,7 @@ export function opening(G, W, n, t, o, { trim = true, keystone = null, sill = tr
     // Над створками (проём выше 2,25 м) — глухая фрамуга с импостом.
     if (y1 > lh + fw + 0.06) {
       planar(G, 'glass', [[ds0, lh + fw], [ds1, lh + fw], [ds1, topAt(ds1 - 0.01) - fw * 0.5], [ds0, topAt(ds0 + 0.01) - fw * 0.5]], (ss, yy) => P(ss, yy, d0 + fd * 0.55), nOut);
-      edgeBeam([ds0, lh + fw / 2], [ds1, lh + fw / 2], fw, fd, 'frame');
+      edgeBeam([ds0, lh + fw / 2], [ds1, lh + fw / 2], fw, fd, 'frame', d0 + 0.0015);
     }
   }
   if (o.kind === 'garage') {
@@ -409,6 +411,7 @@ export function opening(G, W, n, t, o, { trim = true, keystone = null, sill = tr
   if (!trim) return;
   // Наличник 120 мм по сторонам и верху, отлив внизу (у дверей — без отлива).
   const tw = 0.12, tp = 0.025;
+  let trimK = 0;
   const tr = (p, q) => {
     const e = [q[0] - p[0], q[1] - p[1]];
     const l = Math.hypot(...e);
@@ -421,7 +424,7 @@ export function opening(G, W, n, t, o, { trim = true, keystone = null, sill = tr
     const pe = [p[0] - e[0] / l * ext, p[1] - e[1] / l * ext], qe = [q[0] + e[0] / l * ext, q[1] + e[1] / l * ext];
     const c2 = [(pe[0] + qe[0]) / 2 + m[0] * tw / 2, (pe[1] + qe[1]) / 2 + m[1] * tw / 2];
     const a3 = P(pe[0], pe[1], 0), b3 = P(qe[0], qe[1], 0);
-    box(G, 'trim', P(c2[0], c2[1], -tp / 2), [l + 2 * ext, tp, tw], [b3[0] - a3[0], b3[1] - a3[1], b3[2] - a3[2]], { up: nOut });
+    box(G, 'trim', P(c2[0], c2[1], -tp / 2 - trimK++ * 0.0006), [l + 2 * ext, tp, tw], [b3[0] - a3[0], b3[1] - a3[1], b3[2] - a3[2]], { up: nOut });
   };
   for (let i = 0; i < poly.length; i++) {
     const p = poly[i], q = poly[(i + 1) % poly.length];
@@ -498,7 +501,8 @@ export function interiorDoor(G, W, n, t, s0, s1, { y1 = 2.1, glass = false, id =
   for (const [d, nn] of [[-ct / 2, nOut], [t + ct / 2, nOut.map((v) => -v)]]) {
     box(G, 'casing', P(s0 - cw / 2, y1 / 2 + 0.01, d), [y1 + cw, ct, cw], [0, 1, 0], { up: u3 });
     box(G, 'casing', P(s1 + cw / 2, y1 / 2 + 0.01, d), [y1 + cw, ct, cw], [0, 1, 0], { up: u3 });
-    box(G, 'casing', P((s0 + s1) / 2, y1 + cw / 2, d), [s1 - s0 + 2 * cw, cw, ct], u3, { up: nn });
+    // Верхний наличник перекрывает боковые в углах — чуть выступает, без совпадающих граней.
+    box(G, 'casing', P((s0 + s1) / 2, y1 + cw / 2, d + Math.sign(d - t / 2) * 0.0006), [s1 - s0 + 2 * cw, cw, ct], u3, { up: nn });
   }
   for (const s of [s0 + 0.012, s1 - 0.012]) box(G, 'casing', P(s, y1 / 2, t / 2), [y1, t, 0.024], [0, 1, 0], { up: nOut });
   box(G, 'casing', P((s0 + s1) / 2, y1 - 0.012, t / 2), [s1 - s0, 0.024, t], u3, { up: [0, 1, 0] });
@@ -508,7 +512,7 @@ export function interiorDoor(G, W, n, t, s0, s1, { y1 = 2.1, glass = false, id =
   const lt = 0.04, lh = y1 - 0.03;
   if (glass) {
     for (const [c, sz, dir] of [[P((a0 + a1) / 2, 0.06, t / 2), [a1 - a0, 0.1, lt], u3], [P((a0 + a1) / 2, lh - 0.05, t / 2), [a1 - a0, 0.1, lt], u3],
-      [P(a0 + 0.04, lh / 2, t / 2), [lh, 0.08, lt], [0, 1, 0]], [P(a1 - 0.04, lh / 2, t / 2), [lh, 0.08, lt], [0, 1, 0]]]) box(LG, 'doorWood', c, sz, dir, { up: dir[1] ? u3 : [0, 1, 0] });
+      [P(a0 + 0.04, lh / 2, t / 2), [lh, 0.08, lt + 0.0012], [0, 1, 0]], [P(a1 - 0.04, lh / 2, t / 2), [lh, 0.08, lt + 0.0012], [0, 1, 0]]]) box(LG, 'doorWood', c, sz, dir, { up: dir[1] ? u3 : [0, 1, 0] });
     planar(LG, 'saunaGlass', [[a0 + 0.08, 0.11], [a1 - 0.08, 0.11], [a1 - 0.08, lh - 0.1], [a0 + 0.08, lh - 0.1]], (ss, yy) => P(ss, yy, t / 2), nOut);
     planar(LG, 'saunaGlass', [[a0 + 0.08, 0.11], [a1 - 0.08, 0.11], [a1 - 0.08, lh - 0.1], [a0 + 0.08, lh - 0.1]], (ss, yy) => P(ss, yy, t / 2), nOut.map((v) => -v));
   } else {

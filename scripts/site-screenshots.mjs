@@ -1,7 +1,8 @@
 // Кадры участка для отчёта этапа: общий вид, постройки, точки интереса, вечер с костром, вид сверху,
 // прогулка, телефон (этап 2); фасады из штукатурки, ночной свет, разрезы «Внутри», прогулка по
 // помещениям (этап 3). Кадры — реальная отрисовка приложения (dist/index.html) в Chromium.
-// Запуск: npm run site:shots [-- --stage 3 --only site,guest --out docs/img]
+// Итоговые кадры этапа 4 — 1920 × 1080, высокое качество (docs/img/final-*.jpg).
+// Запуск: npm run site:shots [-- --stage 3|4 --only site,guest --out docs/img]
 import { launchChromium } from './browser-launch.mjs';
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
@@ -12,7 +13,11 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, v, i, a) => (v.startsWith('--') ? [...acc, [v.slice(2), a[i + 1]]] : acc), []));
 const OUT = join(ROOT, args.out || 'docs/img');
 const ONLY = args.only ? args.only.split(',') : null;
-const STAGE = args.stage === '3' ? 3 : 2;
+const STAGE = ['3', '4'].includes(args.stage) ? Number(args.stage) : 2;
+// Этап 4 — итоговые кадры 1920 × 1080 в высоком качестве.
+const VIEWPORT = STAGE === 4 ? { width: 1920, height: 1080 } : { width: 1600, height: 1000 };
+const QUERY = STAGE === 4 ? 'still=1&quality=high' : 'still=1';
+const PREFIX = STAGE === 4 ? 'final' : `stage${STAGE}`;
 const PORT = 8773;
 mkdirSync(OUT, { recursive: true });
 const server = spawn('python3', ['-m', 'http.server', String(PORT), '--bind', '127.0.0.1', '--directory', join(ROOT, 'dist')], { stdio: 'ignore' });
@@ -63,19 +68,39 @@ const SHOTS3 = [
   ['walk-grill', `${st('board', 13)} app.setMode("walk", { walk: { inside: "grill", level: 0 } })`, true],
   ['walk-night', `${st('board', 23.4)} ${WALK_AT} walkAt("guest", 4.1, 4.9, 1.2, 7.0)`, true],
 ];
-const LIST = STAGE === 3 ? SHOTS3 : SHOTS;
+const SHOTS4 = [
+  ['site-day', `${st('board', 13)} app.focusOn("site")`, true],
+  ['guest-board', `${st('board', 13)} app.focusOn("guest")`, true],
+  ['guest-plaster', `${st('plaster', 13)} app.focusOn("guest")`, true],
+  ['grill-plaster', `${st('plaster', 17.5)} app.focusOn("grill")`, true],
+  ['garage-board', `${st('board', 13)} app.focusOn("garage")`, true],
+  ['entry', `${st('board', 13)} app.showSpot("entry")`, true],
+  ['dining', `${st('board', 11)} app.showSpot("dining")`, true],
+  ['pond', `${st('board', 16)} app.showSpot("pond")`, true],
+  ['fire-evening', `${st('board', 22.6)} app.showSpot("fire")`, true],
+  ['night-guest', `${st('board', 23.4)} app.focusOn("guest")`, true],
+  ['cut-guest', `${st('board', 13)} app.enterInterior("guest", 0)`, true],
+  ['cut-mansard', `${st('board', 13)} app.enterInterior("guest", 1)`, true],
+  ['walk-living', `${st('board', 13)} ${WALK_AT} walkAt("guest", 4.1, 4.9, 1.2, 7.0)`, true],
+  ['walk-kitchen', `${st('board', 13)} ${WALK_AT} walkAt("guest", 3.6, 7.9, 2.0, 1.4)`, true],
+  ['walk-mansard', `${st('board', 13)} ${WALK_AT} walkAt("guest", 2.6, 3.9, 2.6, 8.6, 1, 0.05)`, true],
+  ['walk-grill-evening', `${st('board', 22.6)} app.setMode("walk", { walk: { inside: "grill", level: 0 } })`, true],
+];
+const LIST = STAGE === 4 ? SHOTS4 : STAGE === 3 ? SHOTS3 : SHOTS;
 
 const browser = await launchChromium();
-const ctx = await browser.newContext({ viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 1 });
+const ctx = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1 });
 ctx.setDefaultNavigationTimeout(240000);
 const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 await page.goto(`${BASE}blank.html`).catch(() => {});
 await page.evaluate(() => { try { localStorage.clear(); } catch { /* нет доступа */ } });
-await page.goto(`${BASE}index.html?still=1`, { waitUntil: 'domcontentloaded' });
+await page.goto(`${BASE}index.html?${QUERY}`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.__site?.ready?.() && window.__site.texturesPending() === 0, null, { timeout: 300000 });
 await page.waitForTimeout(1500);
+// Итоговые кадры — без интерфейса прогулки (кнопки, прицел, подпись места).
+if (STAGE === 4) await page.addStyleTag({ content: '.walk-top, .crosshair, .walk-info, .toasts { display: none !important; }' });
 for (const [name, action, hide] of LIST) {
   if (ONLY && !ONLY.includes(name)) continue;
   await page.evaluate(({ action, hide }) => {
@@ -90,8 +115,10 @@ for (const [name, action, hide] of LIST) {
   await page.waitForTimeout(1200);
   await page.evaluate(() => new Promise((r) => { window.__site.app.invalidate(); requestAnimationFrame(() => requestAnimationFrame(r)); }));
   await page.waitForTimeout(300);
-  await page.screenshot({ path: join(OUT, `stage${STAGE}-${name}.png`), timeout: 300000 });
-  console.log(`✔ stage${STAGE}-${name}.png`);
+  // Итоговые кадры — JPEG высокого качества (1920 × 1080 PNG весит ≈ 4 МБ).
+  const ext = STAGE === 4 ? 'jpg' : 'png';
+  await page.screenshot({ path: join(OUT, `${PREFIX}-${name}.${ext}`), timeout: 300000, ...(STAGE === 4 ? { type: 'jpeg', quality: 92 } : {}) });
+  console.log(`✔ ${PREFIX}-${name}.${ext}`);
 }
 await page.evaluate(() => { const app = window.__site.app; if (app.mode === 'walk') app.setMode('site'); if (app.hidden) app.toggleUI(); });
 // Телефон.

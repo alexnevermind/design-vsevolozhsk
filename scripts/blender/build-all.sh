@@ -23,3 +23,8 @@ if [[ -f artifacts/house-architecture.glb ]]; then
 else
   echo "artifacts/house-architecture.glb нет — сначала: npm run export:glb (экспорт браузерной архитектуры)"
 fi
+if [[ -f artifacts/vsevolozhsk-site.glb ]]; then
+  run scripts/blender/make_site_blend.py
+else
+  echo "artifacts/vsevolozhsk-site.glb нет — сначала: npm run export:site (экспорт сцены участка)"
+fi

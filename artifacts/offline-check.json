@@ -1,51 +1,120 @@
 {
-  "date": "2026-10-26T22:45:26.195Z",
+  "date": "2026-10-27T19:46:48.830Z",
   "environment": "Chromium 153.0.8010.12 headless, сеть отключена (context.setOffline + блокировка http/https), программный WebGL",
   "results": [
     {
+      "target": "site",
       "name": "Автономный HTML загрузился без сети (file://)",
       "ok": true,
-      "note": "26 с"
+      "note": "29 с"
     },
     {
+      "target": "site",
       "name": "Все карты и модель загружены из встроенных data URI",
       "ok": true,
       "note": ""
     },
     {
-      "name": "Изменение отделки без сети",
+      "target": "site",
+      "name": "Фасад «Штукатурка и кирпич» без сети",
       "ok": true,
       "note": ""
     },
     {
+      "target": "site",
+      "name": "Режим «Внутри»: разрез гостевого дома",
+      "ok": true,
+      "note": ""
+    },
+    {
+      "target": "site",
       "name": "Прогулка работает без сети",
       "ok": true,
-      "note": ""
+      "note": "0.75 м"
     },
     {
+      "target": "site",
       "name": "Реальный PNG из автономной версии",
       "ok": true,
       "note": "1800×1120"
     },
     {
-      "name": "Ссылка автономного файла — локальный путь с конфигурацией",
+      "target": "site",
+      "name": "Ссылка автономного файла — локальный путь с состоянием",
       "ok": true,
-      "note": ""
+      "note": "file:///tmp/offline-y9iCy0/Vsevolozhsk.html?quality=low#s=1.…"
     },
     {
+      "target": "site",
       "name": "Внешние обязательные запросы отсутствуют",
       "ok": true,
       "note": ""
     },
     {
+      "target": "site",
       "name": "Ошибок консоли нет",
       "ok": true,
       "note": ""
     },
     {
+      "target": "site",
       "name": "HTML из ZIP совпадает с проверенным файлом (SHA-256)",
       "ok": true,
-      "note": "98099843930e3e0220bec109539b4338a0336dce20b17f4b59c0f11df456c349"
+      "note": "8f47682d52826f49d52365e1a9b486fda975dfbe8e942036124dff0e0c1c1dea"
+    },
+    {
+      "target": "base",
+      "name": "Автономный HTML загрузился без сети (file://)",
+      "ok": true,
+      "note": "30 с"
+    },
+    {
+      "target": "base",
+      "name": "Все карты и модель загружены из встроенных data URI",
+      "ok": true,
+      "note": ""
+    },
+    {
+      "target": "base",
+      "name": "Изменение отделки без сети",
+      "ok": true,
+      "note": ""
+    },
+    {
+      "target": "base",
+      "name": "Прогулка работает без сети",
+      "ok": true,
+      "note": ""
+    },
+    {
+      "target": "base",
+      "name": "Реальный PNG из автономной версии",
+      "ok": true,
+      "note": "1800×1120"
+    },
+    {
+      "target": "base",
+      "name": "Ссылка автономного файла — локальный путь с состоянием",
+      "ok": true,
+      "note": "file:///tmp/offline-OgRQew/VSEMDOM.html?quality=low#r=1.eyJt…"
+    },
+    {
+      "target": "base",
+      "name": "Внешние обязательные запросы отсутствуют",
+      "ok": true,
+      "note": ""
+    },
+    {
+      "target": "base",
+      "name": "Ошибок консоли нет",
+      "ok": true,
+      "note": ""
+    },
+    {
+      "target": "base",
+      "name": "HTML из ZIP совпадает с проверенным файлом (SHA-256)",
+      "ok": true,
+      "note": "5d3225f810d32eb2a6084e78963fb6653a62f4b754b36574a7c47c16b3619094"
     }
   ]
 }

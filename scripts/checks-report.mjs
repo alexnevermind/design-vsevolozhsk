@@ -50,16 +50,24 @@ if (bc) {
 
 const oc = read('artifacts/offline-check.json');
 const sums = read('artifacts/offline-checksums.json');
+const TARGET = { site: 'Участок — Vsevolozhsk.html', base: 'Дом базы — VSEMDOM.html' };
 if (oc) {
-  out.push('## Автономная версия без сети (`npm run offline:check`)', '', `${oc.date.slice(0, 16).replace('T', ' ')} UTC · ${oc.environment}.`, '');
-  for (const r of oc.results) out.push(`- ${mark(r.ok)} ${r.name}${r.note ? ` — ${r.note}` : ''}`);
+  out.push('## Автономные версии без сети (`npm run offline:check`)', '', `${oc.date.slice(0, 16).replace('T', ' ')} UTC · ${oc.environment}.`, '');
+  let tg = null;
+  for (const r of oc.results) {
+    if (r.target !== tg) { tg = r.target; out.push('', `### ${TARGET[tg] ?? 'общие'}`, ''); }
+    out.push(`- ${mark(r.ok)} ${r.name}${r.note ? ` — ${r.note}` : ''}`);
+  }
   out.push('');
 }
 if (sums) {
-  out.push('## Контрольные суммы автономной поставки', '', '| Файл | Байт | SHA-256 |', '|---|---:|---|',
-    `| ${sums.html.path} | ${sums.html.bytes} | \`${sums.html.sha256}\` |`,
-    `| ${sums.zip.path} | ${sums.zip.bytes} | \`${sums.zip.sha256}\` |`, '',
-    `HTML внутри ZIP совпадает байт в байт: ${sums.htmlInZipIdentical ? 'да' : 'нет'}; встроенных ресурсов: ${sums.embeddedAssets}; three ${sums.three}.`, '');
+  out.push('## Контрольные суммы автономных поставок', '', '| Файл | Байт | SHA-256 |', '|---|---:|---|');
+  for (const id of ['site', 'base']) {
+    const t = sums[id];
+    if (!t) continue;
+    out.push(`| ${t.html.path} | ${t.html.bytes} | \`${t.html.sha256}\` |`, `| ${t.zip.path} | ${t.zip.bytes} | \`${t.zip.sha256}\` |`);
+  }
+  out.push('', `HTML внутри ZIP совпадает байт в байт: ${['site', 'base'].every((id) => !sums[id] || sums[id].htmlInZipIdentical) ? 'да' : 'нет'}; встроенных ресурсов: ${sums.site?.embeddedAssets ?? sums.base?.embeddedAssets}; three ${sums.three}.`, '');
 }
 
 const shots = read('artifacts/screenshots/index.json');
@@ -69,8 +77,11 @@ if (shots) {
   out.push('');
 }
 
-if (existsSync(join(ROOT, 'artifacts/screenshots/blender-cycles-facade.png'))) {
-  out.push('## Blender', '', '- [blender-cycles-facade.png](../artifacts/screenshots/blender-cycles-facade.png) — контрольный рендер Cycles (CPU) из assets-source/house.blend: та же архитектура, выгруженная из браузера (`npm run export:glb`), это рендер Blender, а не кадр браузера.', '');
+const blender = ['day-site', 'day-guest', 'day-guest-plaster', 'day-grill', 'day-living', 'day-kitchen', 'night-guest'].map((n) => `blender-site-${n}.png`).filter((f) => existsSync(join(ROOT, 'artifacts/screenshots', f)));
+if (blender.length || existsSync(join(ROOT, 'artifacts/screenshots/blender-cycles-facade.png'))) {
+  out.push('## Blender', '');
+  if (blender.length) out.push('Кадры Cycles (CPU) из assets-source/vsevolozhsk-site.blend — сцена участка, выгруженная из приложения (`npm run export:site`); это рендер Blender, а не кадр браузера:', '', ...blender.map((f) => `- [${f}](../artifacts/screenshots/${f})`), '');
+  if (existsSync(join(ROOT, 'artifacts/screenshots/blender-cycles-facade.png'))) out.push('- [blender-cycles-facade.png](../artifacts/screenshots/blender-cycles-facade.png) — дом базы, assets-source/house.blend.', '');
 }
 
 out.push('## Где проверено', '',

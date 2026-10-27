@@ -1,14 +1,14 @@
-Сторонние компоненты автономной поставки VSEMDOM.COM
+Сторонние компоненты автономной поставки
 
 1. three.js 0.183.2 и addons (OrbitControls, EffectComposer, RenderPass, GTAOPass, OutputPass,
-   SMAAPass, UnrealBloomPass, BokehPass, Sky, RoundedBoxGeometry, BufferGeometryUtils, GLTFLoader,
-   GLTFExporter и их шейдеры) — лицензия MIT, текст: THREE-LICENSE.txt. Copyright © 2010–2026 three.js authors.
+   SMAAPass, UnrealBloomPass, BokehPass, ShaderPass, Sky, RoundedBoxGeometry, BufferGeometryUtils, GLTFLoader
+   и их шейдеры) — лицензия MIT, текст: THREE-LICENSE.txt. Copyright © 2010–2026 three.js authors.
 
-2. Хвойные деревья построены собственным генератором проекта (dist/forest.js); EZ-Tree не используется.
+2. Деревья (сосна, ель, берёза) построены собственными генераторами проекта (dist/forest.js, dist/site-trees.js).
 
-3. Карты материалов, текстура хвои, модель подвесного унитаза и профили изготовлены скриптами
+3. Карты материалов (доска фасада, штукатурка, кирпич, имитация бруса, ламинат, керамогранит, плитка,
+   кровля, газон и др.), текстура хвои, модель подвесного унитаза и профили изготовлены скриптами
    scripts/blender/*.py в Blender 4.3 (модуль bpy) и являются ресурсами проекта.
-   Газон подобран по цветам лужайки на фотографии фасада владельца.
 
 4. Blender (bpy) применяется только при пересборке ассетов и в поставку не входит
    (GNU GPL v2+; сами изготовленные файлы данных лицензией Blender не ограничиваются).

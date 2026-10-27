@@ -21,6 +21,7 @@
     "screenshots": "node scripts/screenshots.mjs",
     "site:shots": "node scripts/site-screenshots.mjs",
     "export:glb": "node scripts/export-glb.mjs",
+    "export:site": "node scripts/export-site-glb.mjs",
     "offline:check": "node scripts/offline-check.mjs",
     "check:all": "npm test && npm run spec -- --check && npm run site -- --check && npm run site:check && npm run browser:check && npm run package:offline && npm run offline:check && npm run checks:report",
     "checks:report": "node scripts/checks-report.mjs"

@@ -1,7 +1,7 @@
 {
-  "date": "2026-10-26T23:08:50.198Z",
+  "date": "2026-10-27T19:43:22.007Z",
   "environment": "Chromium 153.0.8010.12 headless, программный WebGL (SwiftShader) — это не измерение пользовательской видеокарты; сенсорный ввод — эмуляция CDP",
-  "durationSec": 1397,
+  "durationSec": 1674,
   "passed": 88,
   "failed": 0,
   "consoleErrors": [],
@@ -28,7 +28,7 @@
       "scenario": "startup",
       "name": "Фасадный ракурс при старте (FOV 33°)",
       "ok": true,
-      "note": "{\"position\":[22.300000000000004,4.399999999999997,26.999999999999993],\"target\":[1.5999999999999999,0.7999999999999999,0],\"fov\":33}"
+      "note": "{\"position\":[22.300000000000004,4.399999999999997,26.999999999999993],\"target\":[1.6,0.8,0],\"fov\":33}"
     },
     {
       "scenario": "startup",
@@ -158,7 +158,7 @@
       "scenario": "furniture",
       "name": "Перенос: подъём ~14 см, колесо поворачивает на 45° без масштабирования камеры",
       "ok": true,
-      "note": "lift=0.13999999999999999, ry 0→0.7853981633974483"
+      "note": "lift=0.14, ry 0→0.7853981633974483"
     },
     {
       "scenario": "furniture",
@@ -245,7 +245,7 @@
       "scenario": "walk",
       "name": "WASD перемещает человека (через открытую дверь в 005)",
       "ok": true,
-      "note": "(5.19,-1.05)→(5.19,0.37) 005"
+      "note": "(5.19,-1.05)→(5.19,0.02) 005"
     },
     {
       "scenario": "walk",
@@ -305,7 +305,7 @@
       "scenario": "touchEditor",
       "name": "Каталог прокручивается горизонтально пальцем, предмет не добавляется",
       "ok": true,
-      "note": "scrollLeft 2→238"
+      "note": "scrollLeft 2→202"
     },
     {
       "scenario": "touchEditor",
@@ -372,7 +372,7 @@
       "scenario": "persistence",
       "name": "Ссылка содержит #r=1.<base64url>",
       "ok": true,
-      "note": "4383 символов"
+      "note": "4398 символов"
     },
     {
       "scenario": "persistence",
@@ -411,7 +411,7 @@
       "scenario": "persistence",
       "name": "Экспорт PNG 1800 × 1120",
       "ok": true,
-      "note": "1800×1120, 4670366 байт"
+      "note": "1800×1120, 4665290 байт"
     },
     {
       "scenario": "site",
@@ -429,7 +429,7 @@
       "scenario": "site",
       "name": "Горящий костёр в кадре анимируется (кадры запрашиваются непрерывно, время пламени идёт)",
       "ok": true,
-      "note": "{\"frames\":5,\"dt\":12.3,\"animating\":true}"
+      "note": "{\"frames\":4,\"dt\":15,\"animating\":true}"
     },
     {
       "scenario": "site",
