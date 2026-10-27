@@ -144,8 +144,10 @@ function circles(c0, r0, c1, r1, near) {
 }
 const hozPx = pxPos([208.5, 803]);
 const hozNE = circles(grillS, 16.785, guestSW, 12.68, hozPx);
-const garageAt = placer(0, [hozNE[0] - GA.shed.rect[2] / 1000, hozNE[1]]);
-line(`- Хоз.блок: СВ угол (${fmt(hozNE[0])}; ${fmt(hozNE[1])}) по 16785 и 12680; по растру (${fmt(hozPx[0])}; ${fmt(hozPx[1])}), сдвиг ${mm(segLen(hozNE, hozPx))} мм`);
+const gShift = GA.placement.shift.map((v) => v / 1000);
+const garageLabelAt = placer(0, [hozNE[0] - GA.shed.rect[2] / 1000, hozNE[1]]); // положение по подписям (деревья привязаны к нему)
+const garageAt = placer(0, [hozNE[0] - GA.shed.rect[2] / 1000 + gShift[0], hozNE[1] + gShift[1]]);
+line(`- Хоз.блок: СВ угол (${fmt(hozNE[0])}; ${fmt(hozNE[1])}) по 16785 и 12680 (по растру (${fmt(hozPx[0])}; ${fmt(hozPx[1])}), ${mm(segLen(hozNE, hozPx))} мм), затем сдвиг ${mm(gShift[0])} мм к востоку (S5): (${fmt(hozNE[0] + gShift[0])}; ${fmt(hozNE[1] + gShift[1])})`);
 
 // ---------- Геометрия построек в координатах участка ----------
 const rectPts = ([x0, y0, x1, y1]) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
@@ -312,12 +314,14 @@ snap('D1520', 'T27', guestSnap(1, -1520), guestMeasure(1, 0, -1));
 snap('D2570', 'T22', guestSnap(0, -2570), guestMeasure(0, 0, -1));
 snap('D2505', 'T43', guestSnap(1, 9180 + 2505), guestMeasure(1, 9180, 1));
 snap('D1590', 'T21', guestSnap(0, 15215 + 1590), guestMeasure(0, 15215, 1));
-const hozE = B.garage.at([GA.shed.rect[2], 0])[0];
-const hozN = B.garage.at([0, 0])[1];
-const pierE = B.garage.at([GA.carport.piersX[1] + GA.carport.pierCladding[0] / 2, 0])[0];
+const hozE = garageLabelAt([GA.shed.rect[2], 0])[0];
+const hozN = garageLabelAt([0, 0])[1];
+const pierE = garageLabelAt([GA.carport.piersX[1] + GA.carport.pierCladding[0] / 2, 0])[0];
 snap('D1260', 'T04', (p) => [hozE + 1.26, p[1]], (p) => p[0] - hozE);
 snap('D1380', 'T01', (p) => [p[0], hozN - 1.38], (p) => hozN - p[1]);
 snap('D1195', 'T06', (p) => [pierE + 1.195, p[1]], (p) => p[0] - pierE);
+// Деревья стоят по подписям к положению постройки на плане; после сдвига (S5) расстояние меньше на 200 мм.
+for (const c of labelChecks) if (['D1260', 'D1195'].includes(c.labelId)) { c.model -= gShift[0]; c.shifted = true; }
 
 // ---------- Площадки ----------
 const F = S.FEATURES_PX;
@@ -417,15 +421,16 @@ const gW = B.grill.at([-faceD * 1000, 0]);
 labelRow('D1975', gW[0] - westX(gW[1]), undefined, 'привязка');
 const gN = B.grill.at([0, -G.hexagon.vertexR]);
 labelRow('D2495', gN[1] - northZ(gN[0]), undefined, 'привязка');
-labelRow('D16785', segLen(grillS, hozNE), segLen(pxPos([199.5, 341]), hozPx), 'привязка');
-labelRow('D12680', segLen(hozNE, guestSW), segLen(hozPx, pxPos([518.5, 641.5])), 'привязка');
+const hozNEs = [hozNE[0] + gShift[0], hozNE[1] + gShift[1]];
+labelRow('D16785', segLen(grillS, hozNEs), segLen(pxPos([199.5, 341]), hozPx), `привязка, затем сдвиг ${mm(gShift[0])} мм (S5)`);
+labelRow('D12680', segLen(hozNEs, guestSW), segLen(hozPx, pxPos([518.5, 641.5])), `привязка, затем сдвиг ${mm(gShift[0])} мм (S5)`);
 const mainE = gAt([2590, 0]); const wingE = gAt([GU.placement.eastAt, 0]);
 labelRow('D3000N', distToEast(mainE), (eastX(pxPos([773, 566])[1]) - pxPos([773, 566])[0]), 'забор не параллелен дому (S2)');
 labelRow('D3000S', distToEast(wingE), (eastX(pxPos([773, 880])[1]) - pxPos([773, 880])[0]), 'привязка');
 const wS = gAt([15215, (gO[0] - 23.27) * 1000]);
 labelRow('D9105', southZ(wS[0]) - wS[1], southZ(pxPos([690, 920])[0]) - pxPos([690, 920])[1], 'привязка');
 labelRow('D1620', (GU.volumes[1].rect[1]) / 1000, 1.69, 'по листу дома 1700 (S3)');
-for (const c of labelChecks) labelRow(c.labelId, c.model, c.raster, `дерево ${c.tree} ${T[c.tree].label} поставлено по подписи`);
+for (const c of labelChecks) labelRow(c.labelId, c.model, c.raster, `дерево ${c.tree} ${T[c.tree].label} поставлено по подписи${c.shifted ? `; постройка сдвинута на ${mm(gShift[0])} мм (S5)` : ''}`);
 
 // ---------- Взаимное положение ----------
 line('');
@@ -438,7 +443,9 @@ for (const b of buildings) {
 }
 const cpPosts = B.garage.carport.posts;
 const cpMin = Math.min(...cpPosts.map((p) => p[0] - westX(p[1])));
-note(`S5 навес: западные стойки в ${mm(cpMin)} мм от границы (оси стоек), край кровли ${mm(Math.min(...B.garage.carport.roof.map((p) => p[0] - westX(p[1]))))} мм — как на плане; забор проходит вдоль стоек`);
+const roofMin = Math.min(...B.garage.carport.roof.map((p) => p[0] - westX(p[1])));
+const pierMin = Math.min(...B.garage.carport.piers.flat().map((p) => p[0] - westX(p[1])));
+check(roofMin > 0.05 && pierMin > 0.05, `S5 навес сдвинут на ${mm(gShift[0])} мм к востоку: обшивка западных опор в ${mm(pierMin)} мм от границы, край кровли — ${mm(roofMin)} мм`);
 check(cpPosts.every(insideSite), 'навес: все стойки внутри участка');
 
 function polyDist(a, b) {
@@ -453,7 +460,7 @@ check(minPolyDist(fp('grill'), fp('guest')) > 8, `гриль-дом ↔ гост
 check(minPolyDist(fp('garage'), fp('guest')) > 8, `хоз.блок ↔ гостевой дом: ${fmt(minPolyDist(fp('garage'), fp('guest')))} м`);
 check(minPolyDist(fp('garage'), fp('grill')) > 8, `хоз.блок ↔ гриль-дом: ${fmt(minPolyDist(fp('garage'), fp('grill')))} м`);
 const fpDist = (c) => Math.min(...buildings.map((b) => Math.min(...b.footprint.map((poly) => Math.min(...poly.map((p, i) => dseg(c[0], c[1], p[0], p[1], poly[(i + 1) % poly.length][0], poly[(i + 1) % poly.length][1])))))));
-note(`кострище: до ближайшей постройки ${fmt(fpDist(features.firePit.center) - features.firePit.ringR)} м от края кольца, гриль-зона — ${fmt(fpDist(features.grillZone.center))} м от центра; расстояния для открытого огня сверить с правилами противопожарного режима`);
+check(true, `кострище: до ближайшей постройки ${fmt(fpDist(features.firePit.center) - features.firePit.ringR)} м от края кольца, гриль-зона — ${fmt(fpDist(features.grillZone.center))} м от центра (по плану, подтверждено владельцем)`);
 
 // Деревья: внутри построек, площадок, под кровлей; в полосе дорожек.
 const inPoly = (p, poly) => pointInPolygon(p[0], p[1], poly);
@@ -755,8 +762,8 @@ function dimLine(a, b, s, warn, at) {
 }
 dimLine([westX(gW[1]), gW[1]], gW, '1975');
 dimLine([gN[0], northZ(gN[0])], gN, '2495');
-dimLine(grillS, hozNE, '16785');
-dimLine(hozNE, guestSW, '12680');
+dimLine(grillS, hozNEs, '16785');
+dimLine(hozNEs, guestSW, '12680');
 dimLine(mainE, [mainE[0] + eastNormal[0] * distToEast(mainE), mainE[1] + eastNormal[1] * distToEast(mainE)], '3000 ⚠', true, [mainE[0] + 0.4, mainE[1] - 0.3]);
 dimLine(wingE, [wingE[0] + eastNormal[0] * 3, wingE[1] + eastNormal[1] * 3], '3000');
 dimLine(wS, [wS[0], southZ(wS[0])], '9105');

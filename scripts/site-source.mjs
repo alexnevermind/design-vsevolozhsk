@@ -255,7 +255,9 @@ export const GARAGE = {
   id: 'garage',
   name: 'Навес с хоз.блоком',
   sheet: { scale: 15.19, originPx: [253, 250], note: 'начало — СЗ угол хоз.блока; ориентация листа совпадает с участком' },
-  placement: { rotation: 0, anchor: 'NE', from: [{ label: 'D16785' }, { label: 'D12680' }] },
+  // Угол по 16785 и 12680, затем сдвиг на 200 мм к востоку, чтобы опоры и кровля навеса не выходили на
+  // западную границу (S5, решение владельца). Деревья остаются на месте.
+  placement: { rotation: 0, anchor: 'NE', from: [{ label: 'D16785' }, { label: 'D12680' }], shift: [200, 0] },
   shed: {
     name: 'Хоз.блок', rect: [0, 0, 5500, 4360], wall: 150, wallTop: 2300, pitch: 24, overhang: 450, ridgeAxis: 'y', area: 21.4,
     openings: [

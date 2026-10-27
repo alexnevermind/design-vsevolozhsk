@@ -396,9 +396,9 @@
 <text class="small" x="150.3" y="609.4" >гриль-зона</text>
 <circle class="pool" cx="484.5" cy="721.8" r="17.7"/>
 <text class="small" x="466.5" y="751.8" >купель</text>
-<polygon class="drive" points="92.6,750.9 242.6,750.9 242.6,919.5 92.6,919.5" />
-<polygon class="drive" points="127.6,926.1 207.6,927.0 207.6,919.5 127.6,919.5" />
-<polyline class="path" stroke-width="24.0" points="332.6,919.4 323.9,886.0 309.9,830.0 299.9,788.0 283.9,762.0 271.9,700.0 269.9,608.0"/>
+<polygon class="drive" points="96.6,750.9 246.6,750.9 246.6,919.5 96.6,919.5" />
+<polygon class="drive" points="131.6,926.2 211.6,927.1 211.6,919.5 131.6,919.5" />
+<polyline class="path" stroke-width="24.0" points="336.6,919.4 323.9,886.0 309.9,830.0 299.9,788.0 283.9,762.0 271.9,700.0 269.9,608.0"/>
 <polyline class="path" stroke-width="24.0" points="295.9,582.0 365.9,602.0 453.9,608.0 506.3,583.5"/>
 <polyline class="path" stroke-width="20.0" points="269.9,536.0 273.9,470.0 293.9,422.0 332.0,355.3"/>
 <polyline class="path" stroke-width="20.0" points="289.9,430.0 229.9,382.0 168.4,325.0"/>
@@ -408,7 +408,7 @@
 <polygon class="apron" points="607.9,538.2 607.9,628.7 524.3,628.7 524.3,538.2" />
 <polygon class="apron" points="641.9,608.7 641.9,758.9 518.3,758.9 518.3,608.7" />
 <polygon class="apron" points="213.8,152.4 294.9,199.2 294.9,292.9 213.8,339.7 132.7,292.9 132.7,199.2" />
-<polygon class="apron" points="102.6,653.7 232.6,653.7 232.6,760.9 102.6,760.9" />
+<polygon class="apron" points="106.6,653.7 236.6,653.7 236.6,760.9 106.6,760.9" />
 <polygon class="deck" points="234.4,333.6 264.4,281.7 341.8,326.4 311.8,378.3" />
 <polyline class="perg" points="243.7,339.0 273.7,287.0"/>
 <polyline class="perg" points="253.5,344.6 283.5,292.7"/>
@@ -566,40 +566,40 @@
 <polyline class="ridge" points="213.8,246.1 254.4,316.3"/>
 <text class="small halo" x="191.8" y="245.1" >Гриль-дом</text>
 <text class="small halo" x="202.8" y="257.1" >37,2 м²</text>
-<polygon class="room" points="115.6,666.7 219.6,666.7 219.6,747.9 115.6,747.9" />
-<polygon class="wall" points="112.6,666.7 136.6,666.7 136.6,663.7 112.6,663.7" />
-<polygon class="wall" points="198.6,666.7 222.6,666.7 222.6,663.7 198.6,663.7" />
-<polyline class="door" points="136.6,665.2 198.6,665.2"/>
-<polygon class="wall" points="112.6,750.9 157.6,750.9 157.6,747.9 112.6,747.9" />
-<polygon class="wall" points="177.6,750.9 222.6,750.9 222.6,747.9 177.6,747.9" />
-<polyline class="door" points="157.6,749.4 177.6,749.4"/>
-<polygon class="wall" points="112.6,663.7 112.6,691.1 115.6,691.1 115.6,663.7" />
-<polygon class="wall" points="112.6,723.7 112.6,750.9 115.6,750.9 115.6,723.7" />
-<polyline class="glass" points="114.1,691.1 114.1,723.7"/>
-<polygon class="wall" points="219.6,663.7 219.6,691.1 222.6,691.1 222.6,663.7" />
-<polygon class="wall" points="219.6,723.7 219.6,750.9 222.6,750.9 222.6,723.7" />
-<polyline class="glass" points="221.1,691.1 221.1,723.7"/>
-<polygon class="roof" points="92.6,729.7 242.6,729.7 242.6,919.5 92.6,919.5" />
-<polyline class="ridge" points="167.6,729.7 167.6,919.5"/>
-<polygon class="wall" points="91.5,739.5 96.5,739.5 96.5,751.5 91.5,751.5" />
-<polygon class="wall" points="91.5,796.1 96.5,796.1 96.5,808.1 91.5,808.1" />
-<polygon class="wall" points="91.5,848.5 96.5,848.5 96.5,860.5 91.5,860.5" />
-<polygon class="wall" points="91.5,896.5 96.5,896.5 96.5,908.5 91.5,908.5" />
-<polygon class="wall" points="238.8,739.5 243.8,739.5 243.8,751.5 238.8,751.5" />
-<polygon class="wall" points="238.8,796.1 243.8,796.1 243.8,808.1 238.8,808.1" />
-<polygon class="wall" points="238.8,848.5 243.8,848.5 243.8,860.5 238.8,860.5" />
-<polygon class="wall" points="238.8,896.5 243.8,896.5 243.8,908.5 238.8,908.5" />
-<rect class="wall" x="119.3" y="905.2" width="3" height="3"/>
-<rect class="wall" x="213.5" y="905.2" width="3" height="3"/>
-<polygon class="roof" points="103.6,654.7 231.6,654.7 231.6,750.9 103.6,750.9" />
-<polyline class="ridge" points="167.6,654.7 167.6,750.9"/>
-<text class="small halo" x="145.6" y="706.3" >Хоз.блок</text>
-<text class="small halo" x="156.6" y="718.3" >21,4 м²</text>
-<text class="small halo" x="145.7" y="823.0" >Навес для а/м</text>
-<text class="small halo" x="156.7" y="835.0" >60,0 м²</text>
+<polygon class="room" points="119.6,666.7 223.6,666.7 223.6,747.9 119.6,747.9" />
+<polygon class="wall" points="116.6,666.7 140.6,666.7 140.6,663.7 116.6,663.7" />
+<polygon class="wall" points="202.6,666.7 226.6,666.7 226.6,663.7 202.6,663.7" />
+<polyline class="door" points="140.6,665.2 202.6,665.2"/>
+<polygon class="wall" points="116.6,750.9 161.6,750.9 161.6,747.9 116.6,747.9" />
+<polygon class="wall" points="181.6,750.9 226.6,750.9 226.6,747.9 181.6,747.9" />
+<polyline class="door" points="161.6,749.4 181.6,749.4"/>
+<polygon class="wall" points="116.6,663.7 116.6,691.1 119.6,691.1 119.6,663.7" />
+<polygon class="wall" points="116.6,723.7 116.6,750.9 119.6,750.9 119.6,723.7" />
+<polyline class="glass" points="118.1,691.1 118.1,723.7"/>
+<polygon class="wall" points="223.6,663.7 223.6,691.1 226.6,691.1 226.6,663.7" />
+<polygon class="wall" points="223.6,723.7 223.6,750.9 226.6,750.9 226.6,723.7" />
+<polyline class="glass" points="225.1,691.1 225.1,723.7"/>
+<polygon class="roof" points="96.6,729.7 246.6,729.7 246.6,919.5 96.6,919.5" />
+<polyline class="ridge" points="171.6,729.7 171.6,919.5"/>
+<polygon class="wall" points="95.5,739.5 100.5,739.5 100.5,751.5 95.5,751.5" />
+<polygon class="wall" points="95.5,796.1 100.5,796.1 100.5,808.1 95.5,808.1" />
+<polygon class="wall" points="95.5,848.5 100.5,848.5 100.5,860.5 95.5,860.5" />
+<polygon class="wall" points="95.5,896.5 100.5,896.5 100.5,908.5 95.5,908.5" />
+<polygon class="wall" points="242.8,739.5 247.8,739.5 247.8,751.5 242.8,751.5" />
+<polygon class="wall" points="242.8,796.1 247.8,796.1 247.8,808.1 242.8,808.1" />
+<polygon class="wall" points="242.8,848.5 247.8,848.5 247.8,860.5 242.8,860.5" />
+<polygon class="wall" points="242.8,896.5 247.8,896.5 247.8,908.5 242.8,908.5" />
+<rect class="wall" x="123.3" y="905.2" width="3" height="3"/>
+<rect class="wall" x="217.5" y="905.2" width="3" height="3"/>
+<polygon class="roof" points="107.6,654.7 235.6,654.7 235.6,750.9 107.6,750.9" />
+<polyline class="ridge" points="171.6,654.7 171.6,750.9"/>
+<text class="small halo" x="149.6" y="706.3" >Хоз.блок</text>
+<text class="small halo" x="160.6" y="718.3" >21,4 м²</text>
+<text class="small halo" x="149.7" y="823.0" >Навес для а/м</text>
+<text class="small halo" x="160.7" y="835.0" >60,0 м²</text>
 <text class="lblb halo" x="459.9" y="432.6" >Гостевой дом-баня</text>
 <text class="lblb halo" x="173.8" y="144.1" >Гриль-дом</text>
-<text class="lblb halo" x="116.6" y="635.7" >Хоз.блок и навес</text>
+<text class="lblb halo" x="120.6" y="635.7" >Хоз.блок и навес</text>
 <circle class="trunk" cx="122.8" cy="636.1" r="1.5"/>
 <text class="tlab halo" x="127.8" y="647.1" >Е-15</text>
 <circle class="trunk" cx="127.5" cy="469.7" r="2.5"/>
@@ -692,9 +692,9 @@
 <path class="cut" d="M443.6,434.20000000000005L453.6,444.20000000000005M453.6,434.20000000000005L443.6,444.20000000000005"/>
 <text class="tlabc halo" x="453.6" y="450.2" >Б-15</text>
 <polyline class="fence" points="90.0,925.7 105.9,110.0 700.1,132.3 689.1,932.3"/>
-<polyline class="fence" points="90.0,925.7 127.6,926.1"/>
-<polyline class="fence" points="207.6,927.0 322.6,928.3"/>
-<polyline class="fence" points="342.6,928.5 689.1,932.3"/>
+<polyline class="fence" points="90.0,925.7 131.6,926.2"/>
+<polyline class="fence" points="211.6,927.1 326.6,928.3"/>
+<polyline class="fence" points="346.6,928.5 689.1,932.3"/>
 <rect class="post" x="104.4" y="108.5" width="3" height="3"/>
 <rect class="post" x="153.9" y="110.4" width="3" height="3"/>
 <rect class="post" x="203.4" y="112.2" width="3" height="3"/>
@@ -755,18 +755,18 @@
 <rect class="post" x="102.4" y="210.5" width="3" height="3"/>
 <rect class="post" x="103.4" y="159.5" width="3" height="3"/>
 <rect class="post" x="104.4" y="108.5" width="3" height="3"/>
-<polyline class="gate" points="127.6,923.1 317.6,925.2"/>
-<text class="small" x="135.6" y="944.1" >откатные ворота 4,0 м → откат</text>
-<text class="small" x="318.6" y="946.3" >калитка</text>
+<polyline class="gate" points="131.6,923.2 321.6,925.3"/>
+<text class="small" x="139.6" y="944.2" >откатные ворота 4,0 м → откат</text>
+<text class="small" x="322.6" y="946.3" >калитка</text>
 <polygon class="bnd" points="105.9,110.0 700.1,132.3 689.1,932.3 90.0,925.7" />
 <polyline class="dim" points="103.2,246.1 142.7,246.1"/>
 <text class="dimt halo" x="126.0" y="243.1" >1975</text>
 <polyline class="dim" points="213.8,114.1 213.8,164.0"/>
 <text class="dimt halo" x="216.8" y="136.0" >2495</text>
-<polyline class="dim" points="213.8,328.2 222.6,663.7"/>
-<text class="dimt halo" x="221.2" y="493.0" >16785</text>
-<polyline class="dim" points="222.6,663.7 448.3,548.2"/>
-<text class="dimt halo" x="338.5" y="603.0" >12680</text>
+<polyline class="dim" points="213.8,328.2 226.6,663.7"/>
+<text class="dimt halo" x="223.2" y="493.0" >16785</text>
+<polyline class="dim" points="226.6,663.7 448.3,548.2"/>
+<text class="dimt halo" x="340.5" y="603.0" >12680</text>
 <polyline class="dim" points="631.9,496.4 695.1,497.3"/>
 <text class="dimw halo" x="639.9" y="490.4" >3000 ⚠</text>
 <polyline class="dim" points="631.9,723.6 691.9,724.5"/>
