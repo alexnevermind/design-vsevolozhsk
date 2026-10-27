@@ -7,15 +7,31 @@
 
 Этапы (каждый — после согласования владельца):
 
-1. данные + 2D-схема участка + отчёт о нестыковках — **идёт**: база перенесена, проверки проходят,
-   разбор листов — `docs/SITE_SOURCES.md`, исходники — `references/site|guest-house|garage/`;
+1. данные + 2D-схема участка + отчёт о нестыковках — **готово, ждёт согласования**;
 2. участок и постройки снаружи в 3D;
 3. интерьеры;
 4. проверки, кадры, автономный HTML, файл Blender.
 
-Ниже — описание перенесённой базы (пока без изменений). Отличие среды: Chromium для проверок
-запускается через `scripts/browser-launch.mjs` — если браузер нужной Playwright версии не скачан,
-берётся `CHROMIUM_PATH` или `$PLAYWRIGHT_BROWSERS_PATH/chromium`.
+### Данные участка (этап 1)
+
+```bash
+npm run site                 # scripts/site-source.mjs → SITE_SPEC.json, SITE_PLAN.svg, dist/data/site-spec.js,
+                             # docs/SITE_CHECK.md (--check — только проверка, код 1 при ошибках)
+npm run site:png             # SITE_PLAN.svg → docs/img/site-plan.png
+node --test tests/site-spec.test.mjs
+```
+
+- `scripts/site-source.mjs` — единственный ручной ввод: граница и масштаб плана, 160 отметок рельефа, 44 дерева,
+  площадки, постройки в мм их листов (стены, проёмы, помещения, высоты, кровли), забор, ворота, дорожки.
+- `scripts/build-site.mjs` — размещение построек по подписанным размерам, рельеф (сплайн по отметкам), отметки
+  пола (+0,25 над спланированной землёй), деревья под вырубку, сверка подписей листов и плана.
+- `dist/site-terrain.js` — высота рельефа по данным (общая для сборки и будущей 3D-сцены).
+- Исходники — `references/site|guest-house|grill-house|garage|style/`; разбор — `docs/SITE_SOURCES.md`;
+  решения — `docs/ASSUMPTIONS.md`.
+
+Ниже — описание перенесённой базы (3D-приложение пока показывает дом базы; переход на участок — этап 2).
+Отличие среды: Chromium для проверок запускается через `scripts/browser-launch.mjs` — если браузер нужной
+Playwright версии не скачан, берётся `CHROMIUM_PATH` или `$PLAYWRIGHT_BROWSERS_PATH/chromium`.
 
 ---
 
@@ -107,7 +123,8 @@ docs/                        ASSUMPTIONS.md (принятые предполож
 
 ```bash
 npm run spec                 # данные из плана + проверка согласованности (--check — без записи)
-npm test                     # 68 модульных тестов
+npm run site                 # данные участка + docs/SITE_CHECK.md (--check — без записи)
+npm test                     # 76 модульных тестов
 npm run browser:check        # браузерные маршруты (Chromium; нужен playwright)
 npm run screenshots          # кадры приложения
 npm run package:offline      # offline/VSEMDOM.html + artifacts/VSEMDOM-local.zip + offline-checksums.json

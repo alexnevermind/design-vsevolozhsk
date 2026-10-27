@@ -1,14 +1,16 @@
 {
-  "name": "vsemdom-house-configurator",
+  "name": "vsevolozhsk-site-configurator",
   "version": "2.0.0",
   "private": true,
-  "description": "VSEMDOM.COM — интерактивный 3D-конфигуратор одноэтажного дома 12 × 6,8 м с террасой (Three.js)",
+  "description": "Участок во Всеволожске — интерактивный 3D-конфигуратор участка с тремя постройками (Three.js); основа — конфигуратор дома VSEMDOM",
   "type": "module",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
     "spec": "node scripts/build-spec.mjs",
+    "site": "node scripts/build-site.mjs",
+    "site:png": "node scripts/render-site-plan.mjs",
     "vendor": "node scripts/copy-vendor.mjs",
     "test": "node --test \"tests/**/*.test.mjs\"",
     "serve": "python3 -m http.server 8769 --bind 127.0.0.1 --directory dist",
@@ -18,7 +20,7 @@
     "screenshots": "node scripts/screenshots.mjs",
     "export:glb": "node scripts/export-glb.mjs",
     "offline:check": "node scripts/offline-check.mjs",
-    "check:all": "npm test && npm run spec -- --check && npm run browser:check && npm run package:offline && npm run offline:check && npm run checks:report",
+    "check:all": "npm test && npm run spec -- --check && npm run site -- --check && npm run browser:check && npm run package:offline && npm run offline:check && npm run checks:report",
     "checks:report": "node scripts/checks-report.mjs"
   },
   "devDependencies": {

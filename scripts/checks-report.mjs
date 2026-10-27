@@ -19,6 +19,10 @@ let spec = '';
 try { spec = execFileSync('node', ['scripts/build-spec.mjs', '--check'], { cwd: ROOT, encoding: 'utf8' }); } catch (e) { spec = e.stdout || ''; }
 out.push('## Согласованность схемы (`npm run spec -- --check`)', '', `${(spec.trim().split('\n').pop() || '').trim()} — подробности в docs/PLAN_CHECK.md.`, '');
 
+let site = '';
+try { site = execFileSync('node', ['scripts/build-site.mjs', '--check'], { cwd: ROOT, encoding: 'utf8' }); } catch (e) { site = e.stdout || ''; }
+out.push('## Данные участка (`npm run site -- --check`)', '', `${(site.trim().split('\n').pop() || '').trim()} — подробности в docs/SITE_CHECK.md.`, '');
+
 const bc = read('artifacts/browser-check.json');
 if (bc) {
   out.push('## Браузерные маршруты (`npm run browser:check`)', '', `${bc.date.slice(0, 16).replace('T', ' ')} UTC · ${bc.environment}.`, '',
