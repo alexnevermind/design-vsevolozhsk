@@ -751,7 +751,7 @@ const scenarios = {
 async function main() {
   await startServer();
   mkdirSync(dirname(OUT), { recursive: true });
-  writeFileSync(join(ROOT, 'dist', 'blank.html'), '<!doctype html><title>blank</title>');
+  writeFileSync(join(ROOT, 'dist', 'blank.html'), '<!doctype html><link rel="icon" href="data:,"><title>blank</title>');
   const browser = await launchChromium(LAUNCH);
   const version = browser.version();
   const t0 = Date.now();

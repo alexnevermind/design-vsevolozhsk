@@ -56,7 +56,7 @@ export function siteMaterials(lib) {
     }),
     roof: physical('roofTile', {
       color: srgbColor(FINISH.roof), normalMap: lib.tex('metal_normal'), normalScale: new THREE.Vector2(0.1, 0.1), roughnessMap: lib.tex('metal_rough'),
-      roughness: 0.62 / 0.72, metalness: 0.25, clearcoat: 0.35, clearcoatRoughness: 0.45, envMapIntensity: 1.0,
+      roughness: 0.62 / 0.72, metalness: 0.25, clearcoat: 0.2, clearcoatRoughness: 0.5, envMapIntensity: 0.55,
     }),
     soffit: physical('soffit', {
       color: tinted(FINISH.trim, 'facade_albedo'), map: lib.tex('facade_albedo', true), normalMap: lib.tex('facade_normal'), normalScale: new THREE.Vector2(0.6, 0.6),

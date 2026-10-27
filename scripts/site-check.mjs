@@ -38,8 +38,9 @@ async function openPage(browser, { width = 1280, height = 800, touch = false, qu
   const ctx = await browser.newContext({ viewport: { width, height }, hasTouch: touch, isMobile: touch, deviceScaleFactor: 1, acceptDownloads: true });
   ctx.setDefaultNavigationTimeout(240000);
   const page = await ctx.newPage();
-  page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(`${scenario}: ${m.text().slice(0, 300)}`); });
+  page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) consoleErrors.push(`${scenario}: ${m.text().slice(0, 300)}`); });
   page.on('pageerror', (e) => consoleErrors.push(`${scenario}: pageerror ${e.message}`));
+  page.on('response', (r) => { if (r.status() >= 400) consoleErrors.push(`${scenario}: HTTP ${r.status()} ${r.url()}`); });
   await page.goto(`${BASE}blank.html`).catch(() => {});
   await page.evaluate(() => { try { localStorage.clear(); } catch { /* нет доступа */ } }).catch(() => {});
   const t0 = Date.now();
@@ -65,6 +66,8 @@ async function holdUntil(page, key, fn, arg, timeout = 20000) {
 
 const insideAnyBuilding = (x, z) => SITE.buildings.some((b) => b.footprint.some((p) => pointInPolygon(x, z, p)));
 
+// Пустая страница для очистки хранилища (с пустым значком — без запроса favicon.ico).
+writeFileSync(join(ROOT, 'dist', 'blank.html'), '<!doctype html><link rel="icon" href="data:,"><title>blank</title>');
 await startServer();
 const browser = await launchChromium();
 try {
@@ -151,9 +154,10 @@ try {
   record('Прогулка: старт у калитки', w.active && Math.abs(w.z - 39.6) < 1.2, { note: `${w.x.toFixed(2)}, ${w.z.toFixed(2)} · ${w.place}` });
   record('Прогулка: глаза на 1,62 м над поверхностью', Math.abs(w.eyeY - w.floor - 1.62) < 0.05);
   const z0 = w.z;
-  await holdUntil(page, 'KeyW', (z) => window.__site.walk().z < z - 2, z0);
+  // Программный WebGL рисует кадр за секунды (шаг за кадр ограничен 0,36 м) — ждём до 40 с.
+  await holdUntil(page, 'KeyW', (z) => window.__site.walk().z < z - 2, z0, 40000);
   w = await api(page, () => window.__site.walk());
-  record('Прогулка: W — движение на север по дорожке', w.z < z0 - 1.5, { note: `${z0.toFixed(2)} → ${w.z.toFixed(2)}` });
+  record('Прогулка: W — движение на север по дорожке', w.z < z0 - 1 && Math.abs(w.x - 11.53) < 0.6, { note: `${z0.toFixed(2)} → ${w.z.toFixed(2)}` });
   // Упор в западную стену гостевого дома: поставить перед стеной лицом на восток и идти.
   const guest = SITE.buildings.find((b) => b.id === 'guest');
   const gx0 = Math.min(...guest.footprint[0].map((p) => p[0]));

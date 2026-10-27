@@ -339,7 +339,7 @@ function buildFeatures(lib, quality) {
   }
   // Спортплощадка: резиновая крошка 30 мм по рельефу с бетонным бортом.
   {
-    const rubber = lib.make('site|rubber', () => new THREE.MeshStandardMaterial({ map: lib.tex('rubber_albedo', true), normalMap: lib.tex('rubber_normal'), normalScale: new THREE.Vector2(0.6, 0.6), roughness: 0.95, color: tinted('#8e8b85', 'rubber_albedo'), envMapIntensity: 0.3 }));
+    const rubber = lib.make('site|rubber', () => new THREE.MeshStandardMaterial({ map: lib.tex('rubber_albedo', true), normalMap: lib.tex('rubber_normal'), normalScale: new THREE.Vector2(0.6, 0.6), roughness: 0.95, color: tinted('#a6a39d', 'rubber_albedo'), envMapIntensity: 0.6 }));
     const mb = new MeshBuilder();
     draped(mb, F.sport.poly, 0.035, 0.5, 0.5);
     group.add(mesh(mb.build(), rubber, 'sport:surface'));

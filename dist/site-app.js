@@ -257,6 +257,7 @@ function pointsOfInterest() {
     for (const fx of [0, 0.5, 1]) for (const fy of [0.08, 0.5, 0.85]) for (const fz of [0, 0.5, 1]) pts.push(new THREE.Vector3(b.min.x + (b.max.x - b.min.x) * fx, b.min.y + (b.max.y - b.min.y) * fy, b.min.z + (b.max.z - b.min.z) * fz));
     return pts;
   }
+  if (app.spotPois) return app.spotPois.map((p) => new THREE.Vector3(...p));
   if (app.spot) {
     const t = controls.target;
     const pts = [t.clone()];
@@ -297,7 +298,9 @@ mats.inner.emissive = warm.clone();
 mats.inner.emissiveIntensity = 0;
 env.onLight = (st) => {
   for (const f of fires) f.setLight(st);
-  mats.inner.emissiveIntensity = 0.55 * st.lamp;
+  mats.inner.emissiveIntensity = 0.32 * st.lamp;
+  mats.floor.emissive = warm;
+  mats.floor.emissiveIntensity = 0.12 * st.lamp;
 };
 const sunPath = new SunPath(scene, invalidate, { center: [CX, CY - 0.5, CZ], radius: 26 });
 app.sunPath = sunPath;
@@ -373,8 +376,13 @@ function buildingBox(id) {
   return new THREE.Box3().setFromObject(buildings.userData.parts[id].group);
 }
 export function viewFor(id) {
-  const v = VIEWS[id] ?? VIEWS.site;
-  const k = aspectK();
+  let v = VIEWS[id] ?? VIEWS.site;
+  let k = aspectK();
+  // Узкий экран: участок — круче сверху и ближе (иначе камера уходит за фоновый лес).
+  if (k > 1 && (id === 'site' || !VIEWS[id])) {
+    v = { ...v, h: 0.78 };
+    k = Math.min(k, 1.9);
+  } else k = Math.min(k, 2.4);
   let target = v.target;
   if (!target) {
     const b = buildingBox(id);
@@ -403,10 +411,16 @@ function spotView(id) {
       return { pos: [fx + 5.6, y(fx, fz) + 2.6, fz + 5.2], target: [fx - 0.4, y(fx, fz) + 0.5, fz - 0.6] };
     }
     case 'pond': {
+      // Пруд и купель в одном кадре: с юга, от забора над спортплощадкой; деревья на линии пруд — купель
+      // не заслоняют.
       const [px, pz] = F.pond.center;
       const [qx, qz] = F.plungePool.center;
-      const tx = (px + qx) / 2, tz = (pz + qz) / 2;
-      return { pos: [tx - 6, y(tx, tz) + 4.2, tz + 10.5], target: [tx + 0.5, y(tx, tz) + 0.4, tz - 1] };
+      const pois = [];
+      for (let k = 0; k <= 6; k++) {
+        const x = px + ((qx - px) * k) / 6, z = pz + ((qz - pz) * k) / 6;
+        for (const dy of [0.2, 1.2]) pois.push([x, y(x, z) + dy, z]);
+      }
+      return { pos: [13.2, y(13.2, 39.8) + 5.2, 39.8], target: [15.0, y(15, 24.5) + 0.2, 24.5], pois };
     }
     case 'dining': {
       const d = BUILDING.grill.dining;
@@ -426,6 +440,7 @@ app.focusOn = (id) => {
   app.stopCinema();
   app.focus = id;
   app.spot = null;
+  app.spotPois = null;
   const v = viewFor(id);
   flyTo(v.pos, v.target, 1100);
   app.ui?.onFocus(id);
@@ -437,12 +452,15 @@ app.showSpot = (id) => {
   app.spot = id;
   app.ui?.onFocus('site');
   const v = spotView(id);
+  app.spotPois = v.pois ?? null;
   flyTo(v.pos, v.target, 1100);
 };
 app.resetView = () => app.focusOn(app.focus === 'site' ? 'site' : app.focus);
 app.topView = () => {
   if (app.mode === 'walk') return;
   const k = aspectK();
+  app.spot = null;
+  app.spotPois = null;
   flyTo([CX, CY + 68 * k, CZ + 0.5], [CX, CY, CZ], 1000);
 };
 app.zoom = (k) => {
@@ -609,7 +627,7 @@ setMode('site', { force: true });
   const v = start && VIEWS[start] ? viewFor(start) : start ? spotView(start) : viewFor('site');
   camera.position.set(...v.pos);
   controls.target.set(...v.target);
-  if (start && VIEWS[start]) { app.focus = start; app.ui.onFocus(start); } else if (start) app.spot = start;
+  if (start && VIEWS[start]) { app.focus = start; app.ui.onFocus(start); } else if (start) { app.spot = start; app.spotPois = v.pois ?? null; }
 }
 requestAnimationFrame(frame);
 whenTexturesLoaded(() => {
