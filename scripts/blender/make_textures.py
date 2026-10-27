@@ -723,6 +723,112 @@ def make_birch():
     save("birch_normal", normal_from_height(height, 3.0), "data", meta={"tile": [0.5, 0.5]})
 
 
+# ---------- участок во Всеволожске: отделка построек и покрытия ----------
+def make_facade_board():
+    """Вертикальная фасадная доска 120 мм с V-швом 8 мм под полупрозрачной покраской (тайл 0,96 × 0,96 м)."""
+    print("Фасадная доска")
+    n = 1024
+    u, v = grid(n)
+    boards = 8
+    x = u * boards
+    k = np.floor(x).astype(int) % boards
+    f = x - np.floor(x)
+    rng = np.random.default_rng(21101)
+    shift = rng.uniform(0, 1, boards)[k]
+    # Волокна вдоль доски (по v), сучки — редкие пятна; каждая доска — свой рисунок.
+    fib = fnoise(n, 21102, beta=1.2, fmin=4, fmax=n // 2, aniso=(1.0, 40.0))
+    fib = np.roll(fib, 37, axis=1) * 0.5 + fib * 0.5
+    grain = np.sin(2 * np.pi * (u * boards * 9 + 0.6 * fnoise(n, 21103, beta=3.0, fmin=1, fmax=12, aniso=(1.0, 6.0)) + shift * 3))
+    knots = smoothstep(0.82, 0.95, fnoise(n, 21104, beta=0.9, fmin=20, fmax=120))
+    tone_b = rng.uniform(0.95, 1.04, boards)[k]
+    # Профиль: V-шов 8 мм (≈ 1/15 ширины доски) и лёгкое закругление кромок.
+    gw = 0.035
+    edge = np.minimum(f, 1 - f)
+    groove = 1 - smoothstep(0.0, gw, edge)
+    crown = np.sqrt(np.clip(1 - ((f - 0.5) / 0.5) ** 8, 0, 1))
+    height = 0.55 * crown - 1.2 * groove + 0.05 * fib + 0.03 * grain - 0.05 * knots
+    paint = (0.93 + 0.025 * fib + 0.015 * grain - 0.05 * knots) * tone_b
+    paint = paint * (1 - 0.55 * groove)
+    save("facade_albedo", gray3(np.clip(paint, 0, 1)), "color", meta={"tile": [0.96, 0.96], "mean": float(paint.mean())})
+    save("facade_normal", normal_from_height(height, 9.0), "data", meta={"tile": [0.96, 0.96]})
+    rough = 0.78 + 0.08 * groove + 0.04 * fib
+    save("facade_rough", gray3(np.clip(rough, 0, 1)), "data", meta={"tile": [0.96, 0.96]})
+
+
+def make_pavers():
+    """Серая бетонная тротуарная плитка 200 × 100 мм, перевязка в полкирпича, фаска, песок в швах (тайл 0,8 м)."""
+    print("Тротуарная плитка")
+    n = 1024
+    u, v = grid(n)
+    rows = 8
+    r = np.floor(v * rows).astype(int)
+    fv = v * rows - r
+    cols = 4
+    xu = u * cols + 0.5 * (r % 2)
+    c = np.floor(xu).astype(int) % cols
+    fu = xu - np.floor(xu)
+    pid = r * cols + c
+    rng = np.random.default_rng(22101)
+    tone = rng.uniform(0.9, 1.08, rows * cols)[pid]
+    warm = rng.uniform(-0.025, 0.025, rows * cols)[pid]
+    # Края: фаска 4 мм, шов 3 мм (в долях кирпича 200 × 100).
+    eu = np.minimum(fu, 1 - fu) * 200
+    ev = np.minimum(fv, 1 - fv) * 100
+    e = np.minimum(eu, ev)
+    joint = 1 - smoothstep(1.2, 1.8, e)
+    bevel = smoothstep(1.5, 5.5, e)
+    pores = smoothstep(0.55, 0.85, fnoise(n, 22102, beta=0.2, fmin=n // 6, fmax=n // 2))
+    mott = fnoise(n, 22103, beta=2.2, fmin=2, fmax=60)
+    aggr = fnoise(n, 22104, beta=0.5, fmin=n // 10, fmax=n // 2)
+    base = (0.58 + 0.04 * mott + 0.03 * aggr - 0.06 * pores) * tone
+    rgb = np.stack([base * (1 + warm), base, base * (1 - warm) * 0.98], -1)
+    sand = np.array([0.50, 0.47, 0.42]) * (0.9 + 0.1 * aggr[..., None])
+    rgb = rgb * (0.86 + 0.14 * bevel[..., None])
+    rgb = rgb * (1 - joint[..., None]) + sand * joint[..., None]
+    height = 0.8 * bevel - 0.6 * joint + 0.04 * aggr - 0.05 * pores
+    save("pavers_albedo", np.clip(rgb, 0, 1), "color", meta={"tile": [0.8, 0.8], "mean": float(rgb.mean())})
+    save("pavers_normal", normal_from_height(height, 6.0), "data", meta={"tile": [0.8, 0.8]})
+    rough = 0.86 + 0.06 * joint - 0.05 * mott
+    save("pavers_rough", gray3(np.clip(rough, 0, 1)), "data", meta={"tile": [0.8, 0.8]})
+
+
+def make_stucco():
+    """Цокольная штукатурка «шуба» мелкой фракции (тайл 1,0 м)."""
+    print("Штукатурка цоколя")
+    n = 1024
+    grains = fnoise(n, 23101, beta=0.4, fmin=n // 8, fmax=n // 2)
+    lumps = fnoise(n, 23102, beta=1.6, fmin=20, fmax=200)
+    trowel = fnoise(n, 23103, beta=3.0, fmin=1, fmax=10, aniso=(3.0, 1.0))
+    height = 0.6 * smoothstep(-0.2, 0.9, grains) + 0.35 * lumps + 0.15 * trowel
+    tone = 0.80 + 0.04 * lumps + 0.03 * trowel - 0.06 * (1 - smoothstep(-0.6, 0.2, grains))
+    save("stucco_albedo", gray3(np.clip(tone, 0, 1)), "color", meta={"tile": [1.0, 1.0], "mean": float(tone.mean())})
+    save("stucco_normal", normal_from_height(height, 4.0), "data", meta={"tile": [1.0, 1.0]})
+
+
+def make_rubber():
+    """Резиновая крошка спортплощадки: серые гранулы EPDM 1–3 мм (тайл 0,5 м)."""
+    print("Резиновая крошка")
+    n = 1024
+    f1, f2, ids, k = worley_periodic(n, (120, 120), 24101, jitter=1.0)
+    rng = np.random.default_rng(24102)
+    t = rng.uniform(0.32, 0.5, k)[ids]
+    speck = (rng.random(k) < 0.06)[ids]
+    tone = np.where(speck, 0.62, t)
+    edge = smoothstep(0.0, 0.004, f2 - f1)
+    tone = tone * (0.7 + 0.3 * edge)
+    height = edge * rng.uniform(0.6, 1.0, k)[ids]
+    save("rubber_albedo", gray3(np.clip(tone, 0, 1)), "color", meta={"tile": [0.5, 0.5], "mean": float(tone.mean())})
+    save("rubber_normal", normal_from_height(height, 3.0), "data", meta={"tile": [0.5, 0.5]})
+
+
+def make_water():
+    """Рябь воды для пруда и купели: периодический шум (тайл 2,0 м)."""
+    print("Вода")
+    n = 512
+    h = fnoise(n, 25101, beta=3.2, fmin=2, fmax=40) + 0.3 * fnoise(n, 25102, beta=2.0, fmin=8, fmax=120)
+    save("water_normal", normal_from_height(h, 2.5), "data", meta={"tile": [2.0, 2.0]})
+
+
 GENERATORS = {
     "woods": lambda: make_woods(),
     "fabric": lambda: make_fabric(),
@@ -737,6 +843,11 @@ GENERATORS = {
     "flagstone": lambda: make_flagstone(),
     "endgrain": lambda: make_endgrain(),
     "birch": lambda: make_birch(),
+    "facade": lambda: make_facade_board(),
+    "pavers": lambda: make_pavers(),
+    "stucco": lambda: make_stucco(),
+    "rubber": lambda: make_rubber(),
+    "water": lambda: make_water(),
 }
 
 

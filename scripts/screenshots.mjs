@@ -19,7 +19,7 @@ for (let i = 0; i < 50; i++) { try { await fetch(BASE); break; } catch { await n
 const browser = await launchChromium();
 const index = [];
 
-async function open({ w = 1440, h = 900, touch = false, url = BASE } = {}) {
+async function open({ w = 1440, h = 900, touch = false, url = `${BASE}base-house.html` } = {}) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch, deviceScaleFactor: 1 });
   ctx.setDefaultTimeout(300000);
   const page = await ctx.newPage();

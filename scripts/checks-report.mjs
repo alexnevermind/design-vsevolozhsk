@@ -23,9 +23,21 @@ let site = '';
 try { site = execFileSync('node', ['scripts/build-site.mjs', '--check'], { cwd: ROOT, encoding: 'utf8' }); } catch (e) { site = e.stdout || ''; }
 out.push('## Данные участка (`npm run site -- --check`)', '', `${(site.trim().split('\n').pop() || '').trim()} — подробности в docs/SITE_CHECK.md.`, '');
 
+const sc = read('artifacts/site-check.json');
+if (sc) {
+  out.push('## Приложение участка в браузере (`npm run site:check`)', '', `${sc.date.slice(0, 16).replace('T', ' ')} UTC · Chromium, программный WebGL (SwiftShader).`, '',
+    `Итог: **${sc.total - sc.failed} из ${sc.total}**, ошибок консоли: ${sc.consoleErrors.length}.`, '');
+  let scen = null;
+  for (const r of sc.results) {
+    if (r.scenario !== scen) { scen = r.scenario; out.push('', `### ${scen || 'общие'}`, ''); }
+    out.push(`- ${mark(r.ok)} ${r.name}${r.note ? ` — ${r.note}` : ''}`);
+  }
+  out.push('');
+}
+
 const bc = read('artifacts/browser-check.json');
 if (bc) {
-  out.push('## Браузерные маршруты (`npm run browser:check`)', '', `${bc.date.slice(0, 16).replace('T', ' ')} UTC · ${bc.environment}.`, '',
+  out.push('## Браузерные маршруты базы — дом VSEMDOM (`npm run browser:check`, base-house.html)', '', `${bc.date.slice(0, 16).replace('T', ' ')} UTC · ${bc.environment}.`, '',
     `Итог: **${bc.passed} из ${bc.passed + bc.failed}**, ошибок консоли: ${bc.consoleErrors.length}, длительность ${bc.durationSec} с.`, '');
   let scen = null;
   for (const r of bc.results) {

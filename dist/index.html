@@ -3,97 +3,65 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>VSEMDOM.COM — дом 12 × 6,8 м с террасой</title>
-<meta name="description" content="Интерактивный 3D-конфигуратор одноэтажного дома 72 м² с крытой террасой 20 м²: фасады, отделка, мебель, солнце, прогулка.">
+<title>Участок во Всеволожске — 3D</title>
+<meta name="description" content="Интерактивный 3D-участок: гостевой дом-баня, гриль-дом, хоз.блок с навесом, деревья по плану, рельеф, солнце и тени, прогулка.">
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="./style.css">
+<link rel="stylesheet" href="./site.css">
 <script type="importmap">
 { "imports": { "three": "./vendor/three/three.module.min.js", "three/addons/": "./vendor/three/addons/" } }
 </script>
 </head>
 <body>
-<div id="app" class="mode-exterior">
-  <canvas id="scene" aria-label="Трёхмерная сцена дома" tabindex="0"></canvas>
+<div id="app" class="mode-site">
+  <canvas id="scene" aria-label="Трёхмерная сцена участка" tabindex="0"></canvas>
 
   <header class="topbar ui">
-    <div class="brand" aria-label="VSEMDOM.COM">
+    <div class="brand" aria-label="Участок во Всеволожске">
       <svg viewBox="0 0 24 24" class="brand-mark" aria-hidden="true"><path d="M3 11.2 12 4l9 7.2V20a1 1 0 0 1-1 1h-5.2v-5.6H9.2V21H4a1 1 0 0 1-1-1z"/></svg>
-      <div class="brand-text"><strong>VSEMDOM.COM</strong><span id="room-label">Дом 72,0 м² · терраса 20,0 м²</span></div>
+      <div class="brand-text"><strong>Участок · Всеволожск</strong><span id="place-label">≈12 соток · три постройки</span></div>
     </div>
     <nav class="modes" role="tablist" aria-label="Режим просмотра">
-      <button role="tab" data-mode="exterior" aria-selected="true">Снаружи</button>
-      <button role="tab" data-mode="interior" aria-selected="false">Внутри</button>
+      <button role="tab" data-mode="site" aria-selected="true">Участок</button>
+      <button role="tab" data-mode="interior" aria-selected="false" disabled title="Интерьеры — следующий этап">Внутри</button>
       <button role="tab" data-mode="walk" aria-selected="false">Прогулка</button>
     </nav>
     <div class="top-actions">
       <button class="icon-btn" id="btn-sun" title="Солнце и время" aria-label="Солнце и время"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg></button>
-      <button class="icon-btn" id="btn-doors" title="Двери и потолок" aria-label="Двери и потолок"><svg viewBox="0 0 24 24"><path d="M6 21V4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21M3.5 21h17"/><circle cx="14.5" cy="12.5" r="1"/></svg></button>
       <button class="icon-btn" id="btn-png" title="Сохранить кадр PNG" aria-label="Сохранить кадр PNG"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3.6"/><path d="M8.5 6l1.4-2.2h4.2L15.5 6"/></svg></button>
-      <button class="icon-btn" id="btn-link" title="Ссылка на конфигурацию" aria-label="Ссылка на конфигурацию"><svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg></button>
-      <button class="icon-btn" id="btn-settings" title="Настройки" aria-label="Настройки"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.5A7.4 7.4 0 0 0 7 6.5l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 3l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a7.4 7.4 0 0 0 2.6-1.5l2.4 1 2-3.4z"/></svg></button>
+      <button class="icon-btn" id="btn-link" title="Ссылка на вид" aria-label="Ссылка на вид"><svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg></button>
+      <button class="icon-btn" id="btn-settings" title="Качество изображения" aria-label="Качество изображения"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.5A7.4 7.4 0 0 0 7 6.5l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 3l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a7.4 7.4 0 0 0 2.6-1.5l2.4 1 2-3.4z"/></svg></button>
       <button class="icon-btn" id="btn-help" title="Справка" aria-label="Справка"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .8-1 1.5v.6M12 17.2h.01"/></svg></button>
     </div>
   </header>
 
-  <aside class="side-panel ui" id="side-panel" aria-label="Панель настроек">
-    <button class="sheet-toggle" id="sheet-toggle" aria-expanded="true" aria-controls="side-body">Панель</button>
+  <aside class="side-panel ui site-panel" id="side-panel" aria-label="Постройки">
+    <button class="sheet-toggle" id="sheet-toggle" aria-expanded="true" aria-controls="side-body">Постройки</button>
     <div class="side-body" id="side-body"></div>
   </aside>
 
-  <section class="dock ui" id="dock" aria-label="Каталог и палитры">
-    <div class="dock-tabs" role="tablist" id="dock-tabs"></div>
-    <div class="dock-hint" id="dock-hint"></div>
-    <div class="dock-strip" id="dock-strip"></div>
-  </section>
-
-  <div class="cam-controls ui" aria-label="Камера и история">
-    <div class="btn-group">
-      <button class="icon-btn" id="btn-undo" title="Отменить (Ctrl+Z)" aria-label="Отменить"><svg viewBox="0 0 24 24"><path d="M9 7 4 12l5 5M4.5 12H15a5 5 0 0 1 0 10h-2"/></svg></button>
-      <button class="icon-btn" id="btn-redo" title="Повторить (Ctrl+Shift+Z)" aria-label="Повторить"><svg viewBox="0 0 24 24"><path d="m15 7 5 5-5 5M19.5 12H9a5 5 0 0 0 0 10h2"/></svg></button>
-    </div>
+  <div class="cam-controls ui" aria-label="Камера">
     <div class="btn-group">
       <button class="icon-btn" id="btn-zoom-in" title="Приблизить" aria-label="Приблизить"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
       <button class="icon-btn" id="btn-zoom-out" title="Отдалить" aria-label="Отдалить"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
       <button class="icon-btn" id="btn-reset" title="Общий вид (R)" aria-label="Общий вид"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5"/></svg></button>
-      <button class="icon-btn" id="btn-top" title="Вид сверху" aria-label="Вид сверху"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 12h9V4M13 12v8"/></svg></button>
-      <button class="icon-btn" id="btn-cinema" title="Кинематографический обзор (C)" aria-label="Кинематографический обзор"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="13" height="10" rx="1.5"/><path d="m16 10.5 5-3v9l-5-3"/></svg></button>
+      <button class="icon-btn" id="btn-top" title="Вид сверху (T)" aria-label="Вид сверху"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 12h9V4M13 12v8"/></svg></button>
+      <button class="icon-btn" id="btn-cinema" title="Облёт (C)" aria-label="Облёт"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="13" height="10" rx="1.5"/><path d="m16 10.5 5-3v9l-5-3"/></svg></button>
       <button class="icon-btn" id="btn-hide" title="Скрыть интерфейс (/)" aria-label="Скрыть интерфейс"><svg viewBox="0 0 24 24"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.5"/><path d="M4 4l16 16"/></svg></button>
     </div>
   </div>
 
-  <div class="item-tools ui" id="item-tools" hidden>
-    <span class="item-name" id="item-name"></span>
-    <button class="icon-btn" id="btn-rot-left" title="Повернуть на 90° (,)" aria-label="Повернуть влево"><svg viewBox="0 0 24 24"><path d="M8 4 4 8l4 4M4.5 8H14a6 6 0 0 1 0 12h-3"/></svg></button>
-    <button class="icon-btn" id="btn-rot-right" title="Повернуть на 90° (.)" aria-label="Повернуть вправо"><svg viewBox="0 0 24 24"><path d="m16 4 4 4-4 4M19.5 8H10a6 6 0 0 0 0 12h3"/></svg></button>
-    <button class="icon-btn danger" id="btn-delete" title="Удалить (Delete)" aria-label="Удалить"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13"/></svg></button>
-    <button class="icon-btn" id="btn-deselect" title="Снять выбор" aria-label="Снять выбор"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
-  </div>
-  <div class="drag-hint ui" id="drag-hint" hidden></div>
-
   <div class="popover ui" id="sun-panel" hidden role="dialog" aria-label="Солнце">
-    <div class="pop-head"><strong>Солнце · освещение</strong><button class="icon-btn small" data-close="sun-panel" aria-label="Закрыть"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="pop-head"><strong>Солнце · Всеволожск</strong><button class="icon-btn small" data-close="sun-panel" aria-label="Закрыть"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <div class="sun-readout" id="sun-readout"></div>
-    <label class="field">Время <output id="sun-time-out">10:30</output><input type="range" id="sun-time" min="0" max="1439" step="1"></label>
+    <label class="field">Время <output id="sun-time-out">11:00</output><input type="range" id="sun-time" min="0" max="1439" step="1"></label>
     <div class="row2">
       <label class="field">Дата<input type="date" id="sun-date"></label>
-      <label class="field">Север, °<input type="number" id="sun-north" min="0" max="359" step="1"></label>
-    </div>
-    <div class="row2">
-      <label class="field">Широта<input type="number" id="sun-lat" step="0.01"></label>
-      <label class="field">Долгота<input type="number" id="sun-lon" step="0.01"></label>
-    </div>
-    <div class="row2">
-      <label class="field">UTC±<input type="number" id="sun-utc" min="-12" max="14" step="0.5"></label>
-      <label class="check"><input type="checkbox" id="sun-confirm"> Север подтверждён</label>
-    </div>
-    <p class="note" id="north-note"></p>
-    <div class="row2">
-      <label class="check"><input type="checkbox" id="sun-lamps"> Автоматические светильники</label>
       <label class="check"><input type="checkbox" id="sun-notes"> Траектория (N)</label>
     </div>
     <div class="row2">
-      <label class="field">Костёр в мангальной зоне<select id="sun-fire"><option value="auto">Авто: вечером и ночью</option><option value="on">Горит</option><option value="off">Погашен</option></select></label>
-      <button class="btn small" id="btn-bbq" type="button">Показать зону</button>
+      <label class="check"><input type="checkbox" id="sun-lamps"> Светильники</label>
+      <label class="field">Костёр<select id="sun-fire"><option value="auto">Авто: вечером и ночью</option><option value="on">Горит</option><option value="off">Погашен</option></select></label>
     </div>
     <div class="previews" id="sun-previews"></div>
   </div>
@@ -108,23 +76,21 @@
   <div class="walk-hud" id="walk-hud" hidden>
     <div class="walk-top ui-walk">
       <button id="walk-pause">Пауза</button>
-      <button id="walk-door">Дверь (E)</button>
-      <button id="walk-finish">Двери и потолок</button>
       <button id="walk-exit">Вернуться к обзору</button>
     </div>
     <div class="crosshair" aria-hidden="true"></div>
     <div class="walk-info" id="walk-info"></div>
     <div class="walk-paused" id="walk-paused" hidden>
       <p><strong>Прогулка на паузе</strong></p>
-      <p>WASD / стрелки — движение, Shift — быстрее, мышь — взгляд, E — дверь, Esc — пауза.</p>
+      <p>WASD / стрелки — движение, Shift — быстрее, мышь — взгляд, Esc — пауза.</p>
       <button id="walk-resume">Продолжить</button>
     </div>
     <div class="joystick" id="joystick" aria-label="Джойстик движения"><div class="stick" id="stick"></div></div>
   </div>
 
   <div class="toasts" id="toasts" aria-live="polite"></div>
-  <div class="loading" id="loading"><div class="spinner"></div><span>Загрузка сцены…</span></div>
+  <div class="loading" id="loading"><div class="spinner"></div><span>Загрузка участка…</span></div>
 </div>
-<script type="module" src="./app.js"></script>
+<script type="module" src="./site-app.js"></script>
 </body>
 </html>

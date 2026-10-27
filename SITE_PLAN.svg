@@ -399,11 +399,11 @@
 <polygon class="drive" points="96.6,750.9 246.6,750.9 246.6,919.5 96.6,919.5" />
 <polygon class="drive" points="131.6,926.2 211.6,927.1 211.6,919.5 131.6,919.5" />
 <polyline class="path" stroke-width="24.0" points="336.6,919.4 323.9,886.0 309.9,830.0 299.9,788.0 283.9,762.0 271.9,700.0 269.9,608.0"/>
-<polyline class="path" stroke-width="24.0" points="295.9,582.0 365.9,602.0 453.9,608.0 506.3,583.5"/>
-<polyline class="path" stroke-width="20.0" points="269.9,536.0 273.9,470.0 293.9,422.0 332.0,355.3"/>
-<polyline class="path" stroke-width="20.0" points="289.9,430.0 229.9,382.0 168.4,325.0"/>
+<polyline class="path" stroke-width="24.0" points="295.9,582.0 365.9,602.0 453.9,608.0 517.9,583.5"/>
+<polyline class="path" stroke-width="20.0" points="269.9,536.0 273.9,470.0 293.9,422.0 335.5,357.3"/>
+<polyline class="path" stroke-width="20.0" points="289.9,430.0 229.9,382.0 170.2,321.9"/>
 <polyline class="path" stroke-width="20.0" points="231.9,582.0 205.9,598.0"/>
-<polyline class="path" stroke-width="20.0" points="453.9,608.0 485.9,650.0 500.3,683.8"/>
+<polyline class="path" stroke-width="20.0" points="453.9,608.0 485.9,650.0 511.9,683.8"/>
 <polygon class="apron" points="641.9,434.6 641.9,558.2 438.3,558.2 438.3,434.6" />
 <polygon class="apron" points="607.9,538.2 607.9,628.7 524.3,628.7 524.3,538.2" />
 <polygon class="apron" points="641.9,608.7 641.9,758.9 518.3,758.9 518.3,608.7" />
@@ -494,11 +494,11 @@
 <polygon class="wall" points="534.3,548.2 534.3,574.0 539.8,574.0 539.8,548.2" />
 <polygon class="wall" points="534.3,593.0 534.3,618.7 539.8,618.7 539.8,593.0" />
 <polyline class="door" points="537.1,574.0 537.1,593.0"/>
-<polygon class="wall" points="626.4,618.7 626.4,623.5 631.9,623.5 631.9,618.7" />
-<polygon class="wall" points="626.4,640.4 626.4,682.3 631.9,682.3 631.9,640.4" />
+<polygon class="wall" points="626.4,618.7 626.4,639.2 631.9,639.2 631.9,618.7" />
+<polygon class="wall" points="626.4,656.0 626.4,682.3 631.9,682.3 631.9,656.0" />
 <polygon class="wall" points="626.4,698.8 626.4,720.0 631.9,720.0 631.9,698.8" />
 <polygon class="wall" points="626.4,736.6 626.4,748.9 631.9,748.9 631.9,736.6" />
-<polyline class="glass" points="629.2,623.5 629.2,640.4"/>
+<polyline class="glass" points="629.2,639.2 629.2,656.0"/>
 <polyline class="glass" points="629.2,682.3 629.2,698.8"/>
 <polyline class="glass" points="629.2,720.0 629.2,736.6"/>
 <polygon class="wall" points="528.3,618.7 528.3,647.6 533.8,647.6 533.8,618.7" />

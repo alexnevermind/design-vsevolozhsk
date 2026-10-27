@@ -21,7 +21,7 @@ export function bbqOccupied(x, z, pad = 0) {
 }
 
 const polar = (deg, r) => [Math.cos(deg * Math.PI / 180) * r, Math.sin(deg * Math.PI / 180) * r];
-const LAYOUT = {
+export const LAYOUT = {
   benches: [{ deg: -150, r: 1.78, len: 1.6 }, { deg: -45, r: 1.78, len: 1.6 }, { deg: 22, r: 1.85, len: 1.4 }],
   stumps: [{ deg: 96, r: 1.62 }, { deg: 132, r: 1.72 }],
   grill: { deg: 178, r: 2.35 },
@@ -969,23 +969,26 @@ function stringLights(lib, postsXZ) {
 }
 
 // ---------- зона целиком ----------
+// Параметры (для участка с несколькими площадками): center — мировая точка площадки, radius — радиус
+// плитняка, pit — кострище с огнём, layout — скамьи, пни, мангал, поленница, столбы гирлянды.
 export class FireZone {
-  constructor(lib, { quality = 'high' } = {}) {
+  constructor(lib, { quality = 'high', center = null, radius = BBQ.r, pit: withPit = true, layout = LAYOUT, name = 'bbq-zone', patioSeed = 5353 } = {}) {
     const detail = quality === 'low' ? 1 : 2;
+    const C = center ?? { x: BBQ.x, y: GROUND_Y, z: BBQ.z };
     const root = new THREE.Group();
-    root.name = 'bbq-zone';
-    root.position.set(BBQ.x, GROUND_Y, BBQ.z);
+    root.name = name;
+    root.position.set(C.x, C.y, C.z);
     this.group = root;
     const r = rng(8181);
 
     // Площадка и подсыпка швов.
-    const patio = patioGeometry(BBQ.r, 0.84, 5353);
+    const patio = patioGeometry(radius, withPit ? 0.84 : 0, patioSeed);
     this.stoneCount = patio.userData.stones;
     const pm = new THREE.Mesh(patio, lib.flagstone());
     pm.receiveShadow = true;
     pm.name = 'patio';
     root.add(pm);
-    const bed = new THREE.CircleGeometry(BBQ.r + 0.04, 72).rotateX(-Math.PI / 2);
+    const bed = new THREE.CircleGeometry(radius + 0.04, 72).rotateX(-Math.PI / 2);
     const bp = bed.attributes.position;
     const buv = bed.attributes.uv;
     for (let i = 0; i < bp.count; i++) buv.setXY(i, bp.getX(i) / 0.45, bp.getZ(i) / 0.45);
@@ -997,17 +1000,18 @@ export class FireZone {
     bedMesh.material.polygonOffsetUnits = -1;
     root.add(bedMesh);
 
-    const pit = firePit(lib, detail);
-    root.add(pit.group);
+    const pit = withPit ? firePit(lib, detail) : null;
+    if (pit) root.add(pit.group);
     this.pit = pit;
 
-    for (const b of LAYOUT.benches) {
+    this.benches = [];
+    for (const b of layout.benches ?? []) {
       const [x, z] = polar(b.deg, b.r);
       const m = bench(lib, b.len);
       m.position.set(x, 0.03, z);
       m.rotation.y = -Math.atan2(z, x) + Math.PI / 2;
       root.add(m);
-      this.benches = (this.benches || []).concat(m);
+      this.benches.push(m);
     }
     // Подушки на северо-восточной скамье и плед на северо-западной.
     const cushionMat = lib.make('outFabric|sand', () => new THREE.MeshPhysicalMaterial({
@@ -1019,7 +1023,7 @@ export class FireZone {
       roughness: 0.9, sheen: 0.6, sheenRoughness: 0.6, sheenColor: srgbColor('#e2a088'), envMapIntensity: 0.3,
     }));
     const ne = this.benches[1];
-    for (const [x, mat] of [[-0.42, cushionMat], [0.12, terracotta]]) {
+    for (const [x, mat] of ne ? [[-0.42, cushionMat], [0.12, terracotta]] : []) {
       const c = new THREE.Mesh(cushion(0.5, 0.07, 0.4), mat);
       c.position.set(x, 0.49, 0);
       c.rotation.y = (r() - 0.5) * 0.12;
@@ -1040,9 +1044,9 @@ export class FireZone {
     plaid.rotation.y = 0.18;
     plaid.castShadow = true;
     plaid.receiveShadow = true;
-    this.benches[0].add(plaid);
+    this.benches[0]?.add(plaid);
 
-    LAYOUT.stumps.forEach((s, i) => {
+    (layout.stumps ?? []).forEach((s, i) => {
       const [x, z] = polar(s.deg, s.r);
       const m = stump(lib, 31 + i * 7);
       m.position.set(x, 0.0, z);
@@ -1050,38 +1054,40 @@ export class FireZone {
       root.add(m);
     });
 
-    const gr = grill(lib, r);
-    {
-      const [x, z] = polar(LAYOUT.grill.deg, LAYOUT.grill.r);
+    let gr = null;
+    if (layout.grill) {
+      gr = grill(lib, r);
+      const [x, z] = polar(layout.grill.deg, layout.grill.r);
       gr.group.position.set(x, 0.03, z);
-      gr.group.rotation.y = -Math.atan2(z, x) + Math.PI / 2;
+      gr.group.rotation.y = layout.grill.r > 0.01 ? -Math.atan2(z, x) + Math.PI / 2 : (layout.grill.rot ?? 0);
       root.add(gr.group);
     }
     this.grill = gr;
 
-    const wp = woodpile(lib);
-    {
-      const [x, z] = polar(LAYOUT.woodpile.deg, LAYOUT.woodpile.r);
+    if (layout.woodpile) {
+      const wp = woodpile(lib);
+      const [x, z] = polar(layout.woodpile.deg, layout.woodpile.r);
       wp.position.set(x, 0, z);
       wp.rotation.y = -Math.atan2(z, x) - Math.PI / 2;
       root.add(wp);
     }
 
-    const posts = LAYOUT.posts.map((d) => polar(d, 3.2));
-    const sl = stringLights(lib, posts);
-    root.add(sl.group);
+    let sl = null;
+    if (layout.posts?.length) {
+      sl = stringLights(lib, layout.posts.map((d) => polar(d, 3.2)));
+      root.add(sl.group);
+    }
     this.strings = sl;
 
     // Свет: огонь, угли мангала, середины пролётов гирлянды (мировые координаты).
-    const W = (x, y, z) => ({ x: BBQ.x + x, y: GROUND_Y + y, z: BBQ.z + z });
-    const [gx, gz] = polar(LAYOUT.grill.deg, LAYOUT.grill.r);
+    const W = (x, y, z) => ({ x: C.x + x, y: C.y + y, z: C.z + z });
     this.lights = {
-      fire: addPointLight({ ...W(0, 0.55, 0), color: new THREE.Color(1.0, 0.46, 0.15), radius: 10, intensity: 18, flicker: 1 }),
-      grill: addPointLight({ ...W(gx, 0.9, gz), color: new THREE.Color(1.0, 0.4, 0.12), radius: 2.6, intensity: 3.2, flicker: 0.6 }),
-      spans: sl.spans.map((p) => addPointLight({ ...W(p.x, p.y - 0.1, p.z), color: new THREE.Color(1.0, 0.7, 0.4), radius: 5, intensity: 3.2 })),
+      fire: pit ? addPointLight({ ...W(0, 0.55, 0), color: new THREE.Color(1.0, 0.46, 0.15), radius: 10, intensity: 18, flicker: 1 }) : null,
+      grill: gr ? addPointLight({ ...W(...(([gx, gz]) => [gx, 0.9, gz])(polar(layout.grill.deg, layout.grill.r))), color: new THREE.Color(1.0, 0.4, 0.12), radius: 2.6, intensity: 3.2, flicker: 0.6 }) : null,
+      spans: sl ? sl.spans.map((p) => addPointLight({ ...W(p.x, p.y - 0.1, p.z), color: new THREE.Color(1.0, 0.7, 0.4), radius: 5, intensity: 3.2 })) : [],
     };
-    this.center = new THREE.Vector3(BBQ.x, GROUND_Y + 0.6, BBQ.z);
-    this.bounds = new THREE.Sphere(new THREE.Vector3(BBQ.x, GROUND_Y + 1, BBQ.z), 4.2);
+    this.center = new THREE.Vector3(C.x, C.y + 0.6, C.z);
+    this.bounds = new THREE.Sphere(new THREE.Vector3(C.x, C.y + 1, C.z), radius + 1.3);
     this.fire = 0;
   }
 
@@ -1090,23 +1096,29 @@ export class FireZone {
     this.fire = fire;
     FIRE.uFire.value = fire;
     FIRE.uNight.value = 1 - day;
-    this.lights.fire.k = fire;
-    this.lights.grill.k = fire;
+    if (this.lights.fire) this.lights.fire.k = fire;
+    if (this.lights.grill) this.lights.grill.k = fire;
     for (const s of this.lights.spans) s.k = lamp;
-    this.pit.flames.visible = fire > 0.01;
-    this.pit.sparks.visible = fire > 0.01;
-    this.pit.smoke.visible = fire > 0.01;
-    this.pit.halo.material.color.setRGB(1.0, 0.42, 0.12).multiplyScalar(fire * (0.04 + 0.28 * (1 - day)));
-    this.pit.halo.visible = fire > 0.01;
-    this.grill.holeMat.color.setRGB(0.01 + 2.2 * fire, 0.01 + 0.55 * fire, 0.01 + 0.1 * fire);
-    this.grill.meatMesh.visible = fire > 0.05;
-    this.strings.bulbMat.emissiveIntensity = lamp * 3.2;
-    this.strings.glowMat.uniforms.uK.value = lamp * (0.15 + 0.85 * (1 - day));
+    if (this.pit) {
+      this.pit.flames.visible = fire > 0.01;
+      this.pit.sparks.visible = fire > 0.01;
+      this.pit.smoke.visible = fire > 0.01;
+      this.pit.halo.material.color.setRGB(1.0, 0.42, 0.12).multiplyScalar(fire * (0.04 + 0.28 * (1 - day)));
+      this.pit.halo.visible = fire > 0.01;
+    }
+    if (this.grill) {
+      this.grill.holeMat.color.setRGB(0.01 + 2.2 * fire, 0.01 + 0.55 * fire, 0.01 + 0.1 * fire);
+      this.grill.meatMesh.visible = fire > 0.05;
+    }
+    if (this.strings) {
+      this.strings.bulbMat.emissiveIntensity = lamp * 3.2;
+      this.strings.glowMat.uniforms.uK.value = lamp * (0.15 + 0.85 * (1 - day));
+    }
   }
 
   // Огонь живой — нужен непрерывный рендер, пока зона в кадре.
   animating(camera) {
-    if (this.fire <= 0.01) return false;
+    if (this.fire <= 0.01 || !this.pit) return false;
     const f = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
     return f.intersectsSphere(this.bounds) && camera.position.distanceTo(this.bounds.center) < 120;
   }
@@ -1115,7 +1127,7 @@ export class FireZone {
     FIRE.uTime.value = t;
     const h = renderer.getDrawingBufferSize(new THREE.Vector2()).y;
     const px = h / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
-    this.pit.sparkMat.uniforms.uPx.value = px;
-    this.strings.glowMat.uniforms.uPx.value = px;
+    if (this.pit) this.pit.sparkMat.uniforms.uPx.value = px;
+    if (this.strings) this.strings.glowMat.uniforms.uPx.value = px;
   }
 }

@@ -263,7 +263,7 @@ function buildGravel(lib) {
 }
 
 // Объёмная трава: пучок из n изогнутых травинок высотой h0…h1 (цвета вершин от корня к кончику).
-function grassTuft(seed, { blades = 5, h0 = 0.06, h1 = 0.14, spread = 0.06, root, tips }) {
+export function grassTuft(seed, { blades = 5, h0 = 0.06, h1 = 0.14, spread = 0.06, root, tips }) {
   const r = rng(seed);
   const pos = [];
   const col = [];
@@ -309,7 +309,7 @@ function grassTuft(seed, { blades = 5, h0 = 0.06, h1 = 0.14, spread = 0.06, root
   return g;
 }
 
-function bladeMaterial() {
+export function bladeMaterial() {
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.92, envMapIntensity: 0.35 });
   mat.onBeforeCompile = (shader) => {
     // Без переворота нормали на изнанке: травинки освещаются одинаково с обеих сторон.
@@ -400,7 +400,7 @@ function grassEdges(slabs, shrubs, trees) {
 }
 
 // Куст из карточек листвы на эллипсоиде (лицом наружу) с тёмной сердцевиной против просветов.
-function shrubGeometry(seed, rx, ry, rz, cardSize, density, coneTop = false) {
+export function shrubGeometry(seed, rx, ry, rz, cardSize, density, coneTop = false) {
   const r = rng(seed);
   const cards = [];
   const area = 4 * Math.PI * Math.pow((rx * ry + ry * rz + rx * rz) / 3, 1);

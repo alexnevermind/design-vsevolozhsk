@@ -373,6 +373,109 @@
     0.5,
     0.5
    ]
+  },
+  "facade_albedo": {
+   "file": "facade_albedo.webp",
+   "size": 1024,
+   "kind": "color",
+   "tile": [
+    0.96,
+    0.96
+   ],
+   "mean": 0.9098820934529805
+  },
+  "facade_normal": {
+   "file": "facade_normal.webp",
+   "size": 1024,
+   "kind": "data",
+   "tile": [
+    0.96,
+    0.96
+   ]
+  },
+  "facade_rough": {
+   "file": "facade_rough.webp",
+   "size": 1024,
+   "kind": "data",
+   "tile": [
+    0.96,
+    0.96
+   ]
+  },
+  "pavers_albedo": {
+   "file": "pavers_albedo.webp",
+   "size": 1024,
+   "kind": "color",
+   "tile": [
+    0.8,
+    0.8
+   ],
+   "mean": 0.561790810795835
+  },
+  "pavers_normal": {
+   "file": "pavers_normal.webp",
+   "size": 1024,
+   "kind": "data",
+   "tile": [
+    0.8,
+    0.8
+   ]
+  },
+  "pavers_rough": {
+   "file": "pavers_rough.webp",
+   "size": 1024,
+   "kind": "data",
+   "tile": [
+    0.8,
+    0.8
+   ]
+  },
+  "stucco_albedo": {
+   "file": "stucco_albedo.webp",
+   "size": 1024,
+   "kind": "color",
+   "tile": [
+    1.0,
+    1.0
+   ],
+   "mean": 0.7860722365171304
+  },
+  "stucco_normal": {
+   "file": "stucco_normal.webp",
+   "size": 1024,
+   "kind": "data",
+   "tile": [
+    1.0,
+    1.0
+   ]
+  },
+  "rubber_albedo": {
+   "file": "rubber_albedo.webp",
+   "size": 1024,
+   "kind": "color",
+   "tile": [
+    0.5,
+    0.5
+   ],
+   "mean": 0.3588693620507995
+  },
+  "rubber_normal": {
+   "file": "rubber_normal.webp",
+   "size": 1024,
+   "kind": "data",
+   "tile": [
+    0.5,
+    0.5
+   ]
+  },
+  "water_normal": {
+   "file": "water_normal.webp",
+   "size": 512,
+   "kind": "data",
+   "tile": [
+    2.0,
+    2.0
+   ]
   }
  }
 }

@@ -14,7 +14,7 @@ for (let i = 0; i < 50; i++) { try { await fetch(BASE); break; } catch { await n
 const browser = await launchChromium();
 try {
   const page = await browser.newPage({ viewport: { width: 800, height: 500 } });
-  await page.goto(`${BASE}?quality=low`);
+  await page.goto(`${BASE}base-house.html?quality=low`);
   await page.waitForFunction(() => window.__vsemdom?.ready?.() && window.__vsemdom.texturesPending() === 0, null, { timeout: 240000 });
   const b64 = await page.evaluate(async () => {
     const THREE = await import('three');

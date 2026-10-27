@@ -32,7 +32,11 @@ function moonTexture() {
 const SHADOW_BOXES = [[[-8, -0.75, -4.8], [12.6, 4.7, 5.6]], [[9.0, -0.75, 7.4], [15.9, 2.7, 14.6]]];
 
 export class OutdoorEnvironment {
-  constructor(renderer, scene, { shadowSize = 4096 } = {}) {
+  // shadowBoxes — коробки [[min], [max]], которые теневая камера охватывает плотно; center — точка, на
+  // которую смотрит солнце; probe — точка съёмки окружения; sunDistance — удаление источника.
+  constructor(renderer, scene, { shadowSize = 4096, shadowBoxes = SHADOW_BOXES, center = [1.5, 0.5, 0], probe = [1.5, 1.6, 12], sunDistance = 40 } = {}) {
+    this.shadowBoxes = shadowBoxes;
+    this.sunDistance = sunDistance;
     this.renderer = renderer;
     this.scene = scene;
     this.sky = new Sky();
@@ -70,13 +74,13 @@ export class OutdoorEnvironment {
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(shadowSize, shadowSize);
     const sc = this.sun.shadow.camera;
-    sc.left = -11; sc.right = 11; sc.top = 11; sc.bottom = -11; sc.near = 1; sc.far = 80;
+    sc.left = -11; sc.right = 11; sc.top = 11; sc.bottom = -11; sc.near = 1; sc.far = sunDistance * 2;
     this.sun.shadow.bias = -0.00025;
     this.sun.shadow.normalBias = 0.025;
     this.sun.shadow.radius = 2.5;
     this.sun.shadow.camera.layers.enable(1); // теневая оболочка дома
     this.sunTarget = new THREE.Object3D();
-    this.sunTarget.position.set(1.5, 0.5, 0);
+    this.sunTarget.position.set(...center);
     scene.add(this.sunTarget);
     this.sun.target = this.sunTarget;
     scene.add(this.sun);
@@ -90,7 +94,7 @@ export class OutdoorEnvironment {
     // LDR-захват: значения ограничены 0…1, без NaN/Inf в программном WebGL; блики солнца дают источники света.
     this.cubeRT = new THREE.WebGLCubeRenderTarget(128);
     this.cubeCam = new THREE.CubeCamera(0.5, 600, this.cubeRT);
-    this.cubeCam.position.set(1.5, 1.6, 12);
+    this.cubeCam.position.set(...probe);
     this.envRT = null;
     this.state = null;
   }
@@ -100,6 +104,7 @@ export class OutdoorEnvironment {
     const sc = this.sun.shadow.camera;
     const extent = Math.max(sc.right - sc.left, sc.top - sc.bottom);
     this.sun.shadow.normalBias = 0.025 * Math.max(1, 2048 / this.sun.shadow.mapSize.x) * Math.max(1, extent / 22);
+
   }
 
   setShadowSize(n) {
@@ -116,7 +121,7 @@ export class OutdoorEnvironment {
     const day = daylightFactor(s.elevation);
     const lamp = lampFactor(s.elevation, lampsEnabled);
     const dir = new THREE.Vector3(...s.dir);
-    this.sun.position.copy(this.sunTarget.position).addScaledVector(dir, 40);
+    this.sun.position.copy(this.sunTarget.position).addScaledVector(dir, this.sunDistance);
     this.fitShadow();
     const el = Math.max(0, s.elevation);
     // Цвет солнца: тёплый у горизонта, нейтральный днём.
@@ -135,7 +140,7 @@ export class OutdoorEnvironment {
       md.normalize();
       md.y = Math.tan(38 * Math.PI / 180);
       md.normalize();
-      this.sun.position.copy(this.sunTarget.position).addScaledVector(md, 40);
+      this.sun.position.copy(this.sunTarget.position).addScaledVector(md, this.sunDistance);
       this.fitShadow();
       this.sun.color.setRGB(0.6, 0.7, 1.0);
       this.sun.intensity = 0.34 * moonK;
@@ -184,14 +189,19 @@ export class OutdoorEnvironment {
     let x1 = -Infinity;
     let y0 = Infinity;
     let y1 = -Infinity;
+    let zNear = Infinity;
+    let zFar = -Infinity;
     const v = new THREE.Vector3();
-    for (const [a, b] of SHADOW_BOXES) {
+    for (const [a, b] of this.shadowBoxes) {
       for (let k = 0; k < 8; k++) {
         v.set(k & 1 ? b[0] : a[0], k & 2 ? b[1] : a[1], k & 4 ? b[2] : a[2]).applyMatrix4(sc.matrixWorldInverse);
         x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y);
+        zNear = Math.min(zNear, -v.z); zFar = Math.max(zFar, -v.z);
       }
     }
     sc.left = x0 - 0.4; sc.right = x1 + 0.4; sc.bottom = y0 - 0.4; sc.top = y1 + 0.4;
+    sc.near = Math.max(0.5, zNear - 1);
+    sc.far = zFar + 1;
     sc.updateProjectionMatrix();
     this.updateShadowBias();
   }

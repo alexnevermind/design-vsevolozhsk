@@ -34,7 +34,7 @@ async function startServer() {
 
 const LAUNCH = { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] };
 
-async function openPage(browser, { width = 1100, height = 700, url = `${BASE}?quality=low`, touch = false, clear = true, animate = false } = {}) {
+async function openPage(browser, { width = 1100, height = 700, url = `${BASE}base-house.html?quality=low`, touch = false, clear = true, animate = false } = {}) {
   const ctx = await browser.newContext({ viewport: { width, height }, hasTouch: touch, isMobile: touch, deviceScaleFactor: 1, acceptDownloads: true });
   // Программный WebGL: сборка сцены при загрузке модуля может занять больше 30 с.
   ctx.setDefaultNavigationTimeout(180000);
@@ -565,7 +565,7 @@ const scenarios = {
     record('localStorage восстанавливает проект после перезагрузки', JSON.stringify(s3) === JSON.stringify(s));
     // Повреждённая ссылка при открытии страницы (полная загрузка, а не смена hash): сообщение и локальное сохранение.
     await page.goto('about:blank');
-    await page.goto(`${BASE}?quality=low#r=1.Zm9vYmFy`);
+    await page.goto(`${BASE}base-house.html?quality=low#r=1.Zm9vYmFy`);
     await page.waitForFunction(() => window.__vsemdom?.ready?.(), null, { timeout: 180000 });
     const st = await page.evaluate(() => window.__vsemdom.startup());
     record('Непригодная ссылка: понятное сообщение, загружено локальное сохранение', st.source === 'local' && st.messages.some((t) => t.includes('Ссылка')) && JSON.stringify(await S(page)) === JSON.stringify(s), { note: st.messages.join(' | ') });
@@ -586,7 +586,7 @@ const scenarios = {
     record('Пригодная ссылка в открытой вкладке: применена одним действием, отменяется', s4.items.length === 23 && s4.items.some((i) => i.id === 12) && h1.index === h0.index + 1 && JSON.stringify(s5) === JSON.stringify(s), { note: `история ${h0.index}→${h1.index}` });
     // Повреждённое локальное сохранение: новый проект и резервная копия.
     await page.evaluate(() => localStorage.setItem('vsemdom-house-12x68-v1', '{"model":"house-plan-12x68","items":[{"id":1,"type":"piano"}]}'));
-    await page.goto(`${BASE}?quality=low`);
+    await page.goto(`${BASE}base-house.html?quality=low`);
     await page.waitForFunction(() => window.__vsemdom?.ready?.(), null, { timeout: 180000 });
     const backup = await page.evaluate(() => localStorage.getItem('vsemdom-house-12x68-v1-backup'));
     record('Непригодное сохранение: новый проект и резервная копия текста', (await S(page)).items.length === 23 && backup && backup.includes('piano'));

@@ -1,0 +1,20 @@
+/* Участок: список построек и подписи поверх общего стиля базы (style.css). */
+.site-panel { max-height: calc(100% - 140px); }
+.bld-list { display: flex; flex-direction: column; gap: 6px; }
+.bld { display: grid; grid-template-columns: 36px 1fr; gap: 2px 10px; align-items: center; text-align: left; border: 1px solid var(--line, #e3ded3); background: #fff; border-radius: 10px; padding: 8px 10px; cursor: pointer; font: inherit; color: inherit; }
+.bld:hover { border-color: var(--accent); }
+.bld[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.bld svg { grid-row: span 2; width: 34px; height: 34px; fill: none; stroke: var(--accent); stroke-width: 1.4; }
+.bld strong { font-size: 14px; }
+.bld span { font-size: 12px; color: var(--muted); }
+.site-facts { font-size: 12px; color: var(--muted); margin: 10px 2px 2px; line-height: 1.45; }
+.site-facts b { color: var(--ink, #222); font-weight: 600; }
+.views { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.views button { border: 1px solid var(--line, #e3ded3); background: #fff; border-radius: 8px; padding: 5px 9px; font-size: 12px; cursor: pointer; }
+.views button:hover { border-color: var(--accent); color: var(--accent); }
+.modes button[disabled] { opacity: .45; cursor: not-allowed; }
+#app.mode-walk .site-panel { display: none; }
+@media (max-width: 760px) {
+  .site-panel { top: auto; bottom: 8px; left: 8px; right: 8px; width: auto; max-height: 42vh; }
+  #app:has(.side-panel:not(.collapsed)) .cam-controls { display: none; }
+}

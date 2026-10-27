@@ -1,0 +1,458 @@
+// Постройки участка снаружи по данным листов (dist/data/site-spec.js): гостевой дом-баня (основной объём
+// с мансардой, переход, баня), гриль-дом (шестигранник с тремя фронтонами и обеденной площадкой под
+// перголой), хоз.блок с навесом для двух машин. Все на ж/б сваях: чистый пол на 0,25 м выше
+// спланированной земли, цоколь — штукатурка. Отделка — по фотореалистичным рендерам владельца.
+// Каждая постройка — группа в локальных метрах листа (x — вправо по листу, z — вниз), повёрнутая и
+// поставленная на участок; y = 0 — чистый пол.
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { GroupBuilder } from './mesh-builder.js';
+import { SRC, BUILDING, SITE, floorY, placer } from './site-data.js';
+import { siteMaterials, wallGeometry, opening, rectHole, plinth, cornerBoards, box, planar } from './site-arch.js';
+import { gableRoof, makePlane, roofPlane, ridgeCap, chimney, skylight, downpipe } from './site-roof.js';
+import { pointInPolygon, distToSegment } from './geometry.js';
+
+const DEG = Math.PI / 180;
+const mm = (v) => v / 1000;
+
+function builder() {
+  const G = new GroupBuilder();
+  G.extra = [];
+  G.openings = [];
+  return G;
+}
+
+// Проём с записью положения (центр по низу, полуширина, низ) — для посадок у фасадов и прогулки.
+function openingAt(G, w, n, t, h, opts) {
+  if (h.poly) {
+    const ss = h.poly.map((p) => p[0]);
+    const s0 = Math.min(...ss), s1 = Math.max(...ss);
+    G.openings.push({ c: w.P((s0 + s1) / 2, 0, 0), n, half: (s1 - s0) / 2, low: Math.min(...h.poly.map((p) => p[1])), kind: h.kind });
+  } else G.openings.push({ c: w.P((h.s0 + h.s1) / 2, 0, 0), n, half: (h.s1 - h.s0) / 2, low: h.y0, kind: h.kind, door: h.door });
+  opening(G, w, n, t, h, opts);
+}
+
+// Меши по ключам материалов; тени — у всего, кроме стекла.
+function emit(G, mats, name) {
+  const group = new THREE.Group();
+  group.name = name;
+  for (const [key, mb] of G.entries()) {
+    const mesh = new THREE.Mesh(mb.build(), mats[key] ?? mats.trim);
+    mesh.name = `${name}:${key}`;
+    mesh.castShadow = key !== 'glass';
+    mesh.receiveShadow = true;
+    mesh.userData.slot = key;
+    group.add(mesh);
+  }
+  const byKey = new Map();
+  for (const { key, geo } of G.extra) {
+    if (!geo.attributes.color) geo.setAttribute('color', new THREE.Float32BufferAttribute(new Array(geo.attributes.position.count * 3).fill(1), 3));
+    if (geo.index === null) geo.setIndex([...Array(geo.attributes.position.count).keys()]);
+    for (const k of Object.keys(geo.attributes)) if (!['position', 'normal', 'uv', 'color'].includes(k)) geo.deleteAttribute(k);
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(geo);
+  }
+  for (const [key, list] of byKey) {
+    const mesh = new THREE.Mesh(mergeGeometries(list), mats[key] ?? mats.trim);
+    mesh.name = `${name}:${key}+`;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+  return group;
+}
+
+// Водосточные трубы у концов желобов: к ближайшей точке контура постройки, вниз до планировки.
+function pipesFor(G, outline, yBottom, every = 1) {
+  const ends = (G.gutterEnds || []);
+  ends.forEach(([a, b], i) => {
+    if (i % every) return;
+    const top = b;
+    let best = null;
+    for (let k = 0; k < outline.length; k++) {
+      const p = outline[k], q = outline[(k + 1) % outline.length];
+      const r = distToSegment(top[0], top[2], p[0], p[1], q[0], q[1]);
+      if (!best || r.d < best.d) best = { ...r, p, q };
+    }
+    let n = [best.q[1] - best.p[1], -(best.q[0] - best.p[0])];
+    const l = Math.hypot(...n);
+    n = [n[0] / l, n[1] / l];
+    if (pointInPolygon(best.cx + n[0] * 0.05, best.cz + n[1] * 0.05, outline)) n = [-n[0], -n[1]];
+    const wall = [best.cx + n[0] * 0.08, 0, best.cz + n[1] * 0.08];
+    downpipe(G, [top[0], top[1] - 0.04, top[2]], wall, yBottom, n);
+    void a;
+  });
+}
+
+// Фриз: белая доска 220 мм по верху карнизной стены под подшивкой свеса (как на рендерах).
+function frieze(G, a, b, n, y, h = 0.22) {
+  const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  const u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
+  box(G, 'trim', [(a[0] + b[0]) / 2 + n[0] * 0.012, y - h / 2, (a[1] + b[1]) / 2 + n[1] * 0.012], [L + 0.05, h, 0.024], [u[0], 0, u[1]]);
+}
+
+// Ступени: блок из бетонных ступеней перед дверью (ширина w по направлению u, наружу n).
+function steps(G, center, u, n, w, rise = 0.25, run = 0.32) {
+  const k = Math.max(1, Math.round(rise / 0.13));
+  const h = rise / k;
+  for (let i = 0; i < k; i++) {
+    const depth = run * (k - i) + 0.05;
+    const c = [center[0] + n[0] * depth / 2, -h * (i + 0.5), center[1] + n[1] * depth / 2];
+    box(G, 'concrete', c, [w, h, depth], [u[0], 0, u[1]], { uvScale: 1 });
+  }
+}
+
+// ---------- Гостевой дом-баня ----------
+function buildGuest(mats, quality) {
+  const S = SRC.guest;
+  const G = builder();
+  const T = mm(S.outerWall);
+  const vol = Object.fromEntries(S.volumes.map((v) => [v.id, v.rect.map(mm)]));
+  const H = S.heights;
+  const thick = 0.3;
+  const cosM = Math.cos(H.main.pitch * DEG), cosW = Math.cos(H.wing.pitch * DEG), cosL = Math.cos(H.link.pitch * DEG);
+  const tanM = Math.tan(H.main.pitch * DEG), tanW = Math.tan(H.wing.pitch * DEG), tanL = Math.tan(H.link.pitch * DEG);
+  const [mx0, mz0, mx1, mz1] = vol.main;
+  const [wx0, wz0, wx1, wz1] = vol.wing;
+  const [lx0, lz0, lx1, lz1] = vol.link;
+  const mainRidge = mm(H.main.ridgeTop);
+  const wingRidge = mm(H.wing.ridgeTop);
+  const linkHalf = (lz1 - lz0) / 2;
+  const linkRidge = mm(H.link.wall) + 0.05 + linkHalf * tanL + thick / cosL;
+  const mainU = (dist) => mainRidge - dist * tanM - thick / cosM; // низ основы на расстоянии от конька
+  const wingU = (dist) => wingRidge - dist * tanW - thick / cosW;
+  const linkU = (dist) => linkRidge - dist * tanL - thick / cosL;
+  const mHalf = (mx1 - mx0) / 2, wHalf = (wz1 - wz0) / 2;
+  const mEave = mainU(mHalf), wEave = wingU(wHalf), lEave = linkU(linkHalf);
+  const op = (vid, wall) => S.openings.filter((o) => o.volume === vid && o.wall === wall);
+  const pas = (vid, wall) => S.passages.filter((o) => o.volume === vid && o.wall === wall);
+  const W = {};
+  const holeOf = (o, s0off, gableTop) => {
+    if (o.high === 'gable') {
+      const a = mm(o.from) - s0off, b = mm(o.to) - s0off;
+      const pts = [[a, mm(o.low)], [b, mm(o.low)]];
+      const top = (s) => gableTop(s) - 0.32;
+      const c = (mHalf);
+      pts.push([b, top(b)]);
+      if (c > a && c < b) pts.push([c, top(c)]);
+      pts.push([a, top(a)]);
+      return { poly: pts, kind: 'glazing' };
+    }
+    return { s0: mm(o.from) - s0off, s1: mm(o.to) - s0off, y0: mm(o.low), y1: mm(o.high), kind: o.type === 'glazing' ? 'glazing' : o.type, leaves: o.leaves, door: o.door ? o.door.map((v) => mm(v) - s0off) : null, transom: o.transomAt ? mm(o.transomAt) : null };
+  };
+  const addWall = (id, a, b, n, top, ops, s0off, passages = [], opts = {}) => {
+    const items = ops.map((o) => ({ o, h: holeOf(o, s0off, opts.gableTop) }));
+    const holes = items.map(({ h }) => h.poly ?? rectHole(h.s0, h.s1, h.y0, h.y1));
+    for (const p of passages) holes.push(rectHole(mm(p.from) - s0off, mm(p.to) - s0off, 0, 2.1));
+    const w = wallGeometry(G, { a, b, n, t: T, top, holes, ends: [false, false] });
+    W[id] = w;
+    for (const { h } of items) openingAt(G, w, n, T, h);
+    return w;
+  };
+  // Основной объём: фронтоны на востоке (z0) и западе (z1), карнизы — север (x0), юг (x1).
+  const mGable = (s) => mainU(Math.abs(s - mHalf));
+  const mTop = [[0, mEave], [mHalf, mainU(0)], [mx1 - mx0, mEave]];
+  addWall('main-y0', [mx0, mz0], [mx1, mz0], [0, -1], mTop, op('main', 'y0'), 0, [], { gableTop: mGable });
+  addWall('main-y1', [mx1, mz1], [mx0, mz1], [0, 1], mTop.map(([s, y]) => [s, y]), op('main', 'y1').map((o) => ({ ...o, from: mx1 * 1000 - o.to, to: mx1 * 1000 - o.from, door: o.door ? [mx1 * 1000 - o.door[1], mx1 * 1000 - o.door[0]] : null })), 0, [], { gableTop: mGable });
+  addWall('main-x0', [mx0, mz1 - T], [mx0, mz0 + T], [-1, 0], [[0, mEave], [mz1 - mz0 - 2 * T, mEave]], op('main', 'x0').map((o) => ({ ...o, from: (mz1 - T) * 1000 - o.to, to: (mz1 - T) * 1000 - o.from })), 0);
+  addWall('main-x1', [mx1, mz0 + T], [mx1, mz1 - T], [1, 0], [[0, mEave], [mz1 - mz0 - 2 * T, mEave]], op('main', 'x1'), T, pas('main', 'x1'));
+  // Переход: стены на востоке (z0, к дворику) и западе (z1, вход).
+  addWall('link-y0', [lx1, lz0], [lx0, lz0], [0, -1], [[0, lEave], [lx1 - lx0, lEave]], op('link', 'y0').map((o) => ({ ...o, from: lx1 * 1000 - o.to, to: lx1 * 1000 - o.from })), 0);
+  addWall('link-y1', [lx0, lz1], [lx1, lz1], [0, 1], [[0, lEave], [lx1 - lx0, lEave]], op('link', 'y1'), lx0);
+  // Баня: фронтоны на севере (x0) и юге (x1), карнизы — восток (z0), запад (z1).
+  const wTop = [[0, wEave], [wHalf, wingU(0)], [wz1 - wz0, wEave]];
+  addWall('wing-x0', [wx0, wz1], [wx0, wz0], [-1, 0], wTop, [], 0, pas('wing', 'x0').map((p) => ({ ...p, from: wz1 * 1000 - p.to, to: wz1 * 1000 - p.from })));
+  addWall('wing-x1', [wx1, wz0], [wx1, wz1], [1, 0], wTop, op('wing', 'x1'), 0);
+  addWall('wing-y0', [wx1 - T, wz0], [wx0 + T, wz0], [0, -1], [[0, wEave], [wx1 - wx0 - 2 * T, wEave]], op('wing', 'y0').map((o) => ({ ...o, from: (wx1 - T) * 1000 - o.to, to: (wx1 - T) * 1000 - o.from })), 0);
+  addWall('wing-y1', [wx0 + T, wz1], [wx1 - T, wz1], [0, 1], [[0, wEave], [wx1 - wx0 - 2 * T, wEave]], op('wing', 'y1'), wx0 + T);
+  // Второй ярус окон мансарды на восточном фронтоне — тот же список (storey 2) уже в main-y0.
+  // Перегородки (интерьер — этап 3): простые стены с проёмами дверей.
+  for (const p of S.partitions) {
+    const a = p.a.map(mm), b = p.b.map(mm);
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
+    const n = [-u[1], u[0]];
+    const t = mm(p.t);
+    const top = p.id.startsWith('gp-wing') ? 3.0 : 2.7;
+    const holes = (p.openings ?? []).map((o) => rectHole(mm(o.from), mm(o.to), 0, 2.1));
+    wallGeometry(G, { a: [a[0] + n[0] * t / 2, a[1] + n[1] * t / 2], b: [b[0] + n[0] * t / 2, b[1] + n[1] * t / 2], n, t, top: [[0, top], [L, top]], holes, keyOut: 'inner', keyIn: 'inner', keyReveal: 'inner' });
+  }
+  // Полы и перекрытие мансарды.
+  for (const [x0, z0, x1, z1] of [vol.main, vol.link, vol.wing]) planar(G, 'floor', [[x0, z0], [x1, z0], [x1, z1], [x0, z1]], (x, z) => [x, 0.002, z], [0, 1, 0], ([x, z]) => [x / 1.8, z / 0.72]);
+  box(G, 'inner', [(mx0 + mx1) / 2, mm(H.main.floor2) - 0.11, (mz0 + T + mm(4550)) / 2], [mx1 - mx0 - 2 * T, 0.22, mm(4550) - T], [1, 0, 0]);
+  // Цоколь по общему контуру.
+  const outline = [[mx0, mz0], [mx1, mz0], [mx1, lz0], [lx1, lz0], [wx0, wz0], [wx1, wz0], [wx1, wz1], [wx0, wz1], [wx0, lz1], [lx0, lz1], [mx1, mz1], [mx0, mz1]];
+  plinth(G, outline, -0.45);
+  // Угловые доски на наружных углах.
+  const cb = (c, d1, d2, y1) => cornerBoards(G, c, d1, d2, 0, y1);
+  cb([mx0, mz0], [1, 0], [0, 1], mEave); cb([mx1, mz0], [-1, 0], [0, 1], mEave);
+  cb([mx0, mz1], [1, 0], [0, -1], mEave); cb([mx1, mz1], [-1, 0], [0, -1], mEave);
+  cb([wx0, wz0], [1, 0], [0, 1], wEave); cb([wx1, wz0], [-1, 0], [0, 1], wEave);
+  cb([wx1, wz1], [-1, 0], [0, -1], wEave); cb([wx0, wz1], [1, 0], [0, -1], wEave);
+  frieze(G, [mx0, mz0], [mx0, mz1], [-1, 0], mEave);
+  frieze(G, [mx1, mz0], [mx1, mz1], [1, 0], mEave);
+  frieze(G, [wx0, wz0], [wx1, wz0], [0, -1], wEave);
+  frieze(G, [wx0, wz1], [wx1, wz1], [0, 1], wEave);
+  frieze(G, [mx1, lz0], [wx0, lz0], [0, -1], lEave);
+  frieze(G, [mx1, lz1], [wx0, lz1], [0, 1], lEave);
+  // Кровли.
+  const mainRoof = gableRoof(G, { rect: vol.main, ridgeAxis: 'z', ridgeTop: mainRidge, pitch: H.main.pitch, over: mm(H.main.overhang), thick, quality });
+  gableRoof(G, { rect: vol.wing, ridgeAxis: 'x', ridgeTop: wingRidge, pitch: H.wing.pitch, over: mm(H.wing.overhang), thick, quality });
+  gableRoof(G, { rect: vol.link, ridgeAxis: 'x', ridgeTop: linkRidge, pitch: H.link.pitch, over: 0.3, eaveOver: [0.3, mm(H.link.overhang)], abut: [true, true], thick, quality, snow: false });
+  // Мансардные окна на северном скате над спальней.
+  const north = mainRoof.planes[0];
+  for (const sk of S.roofs[0].skylights) skylight(G, north, mm(sk.at), 1.7, mm(sk.size[0]), mm(sk.size[1]));
+  // Трубы.
+  for (const c of S.chimneys) {
+    const [x, z] = c.at.map(mm);
+    const inMain = x < mx1;
+    const yRoof = inMain ? mainRidge - Math.abs(x - (mx0 + mx1) / 2) * tanM : wingRidge - Math.abs(z - (wz0 + wz1) / 2) * tanW;
+    chimney(G, x, z, yRoof, (inMain ? mainRidge : wingRidge) + 0.6, mm(c.d));
+  }
+  pipesFor(G, outline, -0.25, 1);
+  // Ступени у дверей (пол +0,25 над планировкой).
+  const door = (wid, o, n) => { const w = W[wid]; const sc = (o.s0 + o.s1) / 2; const p = w.P(sc, 0, 0); steps(G, [p[0], p[2]], w.u, n, o.s1 - o.s0 + 0.5); };
+  const entry = S.openings.find((o) => o.id === 'GD2');
+  door('link-y1', { s0: mm(entry.from) - lx0, s1: mm(entry.to) - lx0 }, [0, 1]);
+  const live = S.openings.find((o) => o.id === 'GD1');
+  door('main-x1', { s0: mm(live.from) - T, s1: mm(live.to) - T }, [1, 0]);
+  const rest = S.openings.find((o) => o.id === 'GG3');
+  door('wing-y1', { s0: mm(rest.door[0]) - wx0 - T, s1: mm(rest.door[1]) - wx0 - T }, [0, 1]);
+  return { G, outline, heights: { mainRidge, wingRidge, linkRidge } };
+}
+
+// ---------- Гриль-дом ----------
+const FACES = ['NE', 'E', 'SE', 'SW', 'W', 'NW'];
+function buildGrill(mats, quality) {
+  const S = SRC.grill;
+  const G = builder();
+  const R = mm(S.hexagon.vertexR);
+  const t = mm(S.hexagon.wall);
+  const F = R * Math.cos(30 * DEG);
+  const over = mm(S.roof.overhang);
+  const pitch = S.roof.pitch;
+  const tan = Math.tan(pitch * DEG), cos = Math.cos(pitch * DEG);
+  const thick = 0.3;
+  const wallTop = mm(S.wallTop);
+  const Htop = wallTop + thick / cos + F * tan; // верх покрытия в вершине
+  const under = (d) => Htop - d * tan - thick / cos;
+  const vtx = (r, k) => [r * Math.cos((-90 + 60 * k) * DEG), r * Math.sin((-90 + 60 * k) * DEG)];
+  const nrm = (k) => [Math.cos((-60 + 60 * k) * DEG), Math.sin((-60 + 60 * k) * DEG)];
+  const gables = S.roof.gables;
+  const eaveU = under(F);
+  const ridgeAtWall = under(F * 0.5);
+  for (let k = 0; k < 6; k++) {
+    const a = vtx(R, k), b = vtx(R, k + 1);
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const gable = gables.includes(FACES[k]);
+    const top = gable ? [[0, eaveU], [L / 2, ridgeAtWall], [L, eaveU]] : [[0, eaveU], [L, eaveU]];
+    const ops = S.openings.filter((o) => o.face === FACES[k]);
+    const n = nrm(k);
+    if (!gable) frieze(G, a, b, n, eaveU);
+    const w = wallGeometry(G, { a, b, n, t, top, holes: ops.map((o) => rectHole(mm(o.from), mm(o.to), mm(o.low), mm(o.high))), ends: [false, false] });
+    for (const o of ops) openingAt(G, w, n, t, { s0: mm(o.from), s1: mm(o.to), y0: mm(o.low), y1: mm(o.high), kind: o.type, leaves: o.leaves });
+    // Угловая доска на каждом углу (тупой угол 120°): две доски по граням.
+    const nPrev = nrm((k + 5) % 6);
+    cornerBoards(G, a, [(b[0] - a[0]) / L, (b[1] - a[1]) / L], [(vtx(R, k - 1)[0] - a[0]) / L, (vtx(R, k - 1)[1] - a[1]) / L], 0, eaveU, { w: 0.1 });
+    void nPrev;
+  }
+  const outline = [0, 1, 2, 3, 4, 5].map((k) => vtx(R, k));
+  planar(G, 'floor', [0, 1, 2, 3, 4, 5].map((k) => vtx(mm(S.hexagon.innerFace) / Math.cos(30 * DEG), k)), (x, z) => [x, 0.002, z], [0, 1, 0], ([x, z]) => [x / 1.8, z / 0.72]);
+  plinth(G, outline, -0.45);
+  // Кровля: три ската над гранями В, ЮЗ, СЗ; коньки — к серединам фронтонов З, СВ, ЮВ.
+  const Fo = F + over;
+  const Ro = Fo / Math.cos(30 * DEG);
+  const planes = [];
+  for (let k = 0; k < 6; k++) {
+    if (gables.includes(FACES[k])) continue;
+    const n = nrm(k);
+    const A = [-n[1], 0, n[0]];
+    const D = [n[0] * cos, -Math.sin(pitch * DEG), n[1] * cos];
+    const toAS = ([x, z]) => [x * A[0] + z * A[2], (x * n[0] + z * n[1]) / cos];
+    const mPrev = nrm(k - 1).map((v) => v * Fo), mNext = nrm(k + 1).map((v) => v * Fo);
+    const poly = [[0, 0], toAS(mPrev), toAS(vtx(Ro, k)), toAS(vtx(Ro, k + 1)), toAS(mNext)];
+    const pl = makePlane([0, Htop, 0], A, D, poly, ['ridge', 'rake', 'eave', 'rake', 'ridge'], Fo / cos);
+    roofPlane(G, pl, { thick, quality, gutters: [2] });
+    planes.push({ k, pl });
+  }
+  for (const f of gables) {
+    const k = FACES.indexOf(f);
+    const m = nrm(k).map((v) => v * Fo);
+    ridgeCap(G, [0, Htop, 0], [m[0], Htop - Fo * 0.5 * tan, m[1]]);
+  }
+  // Мансардные окна на СЗ скате, труба над очагом.
+  const nw = planes.find((p) => FACES[p.k] === S.roof.skylights[0].face).pl;
+  for (const a of [-0.65, 0.65]) skylight(G, nw, a, 2.0, mm(S.roof.skylights[0].size[0]), mm(S.roof.skylights[0].size[1]));
+  const [cx, cz] = S.roof.chimney.at.map(mm);
+  // Высота кровли над очагом: ближайшая плоскость — над гранью В.
+  const yRoof = Math.min(...planes.map(({ k }) => Htop - (cx * nrm(k)[0] + cz * nrm(k)[1]) * tan));
+  chimney(G, cx, cz, yRoof, Htop + 0.5, mm(S.roof.chimney.d));
+  pipesFor(G, outline, -0.25, 2);
+  // Ступени у двери ЮЗ; у ЮВ — обеденная площадка (настил на уровне −0,05).
+  const sw = FACES.indexOf('SW');
+  {
+    const a = vtx(R, sw), b = vtx(R, sw + 1);
+    const u = [(b[0] - a[0]) / R, (b[1] - a[1]) / R];
+    steps(G, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], u, nrm(sw), 2.3);
+  }
+  const se = FACES.indexOf('SE');
+  const n = nrm(se);
+  const tdir = [-n[1], n[0]];
+  const w2 = mm(S.dining.width) / 2, D = mm(S.dining.depth);
+  const m0 = [n[0] * F, n[1] * F];
+  const deck = [[m0[0] + tdir[0] * w2, m0[1] + tdir[1] * w2], [m0[0] - tdir[0] * w2, m0[1] - tdir[1] * w2], [m0[0] - tdir[0] * w2 + n[0] * D, m0[1] - tdir[1] * w2 + n[1] * D], [m0[0] + tdir[0] * w2 + n[0] * D, m0[1] + tdir[1] * w2 + n[1] * D]];
+  // Настил из доски 140 мм поперёк площадки.
+  for (let i = 0; i * 0.145 < D; i++) {
+    const d = i * 0.145 + 0.07;
+    if (d > D) break;
+    const c = [m0[0] + n[0] * d, -0.06, m0[1] + n[1] * d];
+    box(G, 'deck', c, [2 * w2, 0.035, 0.138], [tdir[0], 0, tdir[1]], { uvScale: 1 / 1.8 });
+  }
+  box(G, 'deck', [m0[0] + n[0] * D / 2 + tdir[0] * w2, -0.17, m0[1] + n[1] * D / 2 + tdir[1] * w2], [D, 0.2, 0.03], [n[0], 0, n[1]]);
+  box(G, 'deck', [m0[0] + n[0] * D / 2 - tdir[0] * w2, -0.17, m0[1] + n[1] * D / 2 - tdir[1] * w2], [D, 0.2, 0.03], [n[0], 0, n[1]]);
+  box(G, 'deck', [m0[0] + n[0] * D, -0.17, m0[1] + n[1] * D], [2 * w2, 0.2, 0.03], [tdir[0], 0, tdir[1]]);
+  steps(G, [m0[0] + n[0] * D, m0[1] + n[1] * D], tdir, n, 1.6, 0.2);
+  // Пергола: четыре стойки 120 мм, прогоны вдоль площадки, обрешётка поперёк.
+  const pf = mm(S.dining.pergolaFrom) + 0.1;
+  const postH = 2.45;
+  for (const sd of [-1, 1]) for (const d of [pf, D - 0.12]) {
+    const c = [m0[0] + n[0] * d + tdir[0] * sd * (w2 - 0.1), postH / 2 - 0.05, m0[1] + n[1] * d + tdir[1] * sd * (w2 - 0.1)];
+    box(G, 'deck', c, [postH + 0.1, 0.12, 0.12], [0, 1, 0], { up: [n[0], 0, n[1]] });
+  }
+  for (const sd of [-1, 1]) box(G, 'deck', [m0[0] + n[0] * (pf + D) / 2 + tdir[0] * sd * (w2 - 0.1), postH + 0.08, m0[1] + n[1] * (pf + D) / 2 + tdir[1] * sd * (w2 - 0.1)], [D - pf + 0.5, 0.16, 0.06], [n[0], 0, n[1]]);
+  for (let d = pf - 0.15; d <= D + 0.2; d += 0.4) box(G, 'deck', [m0[0] + n[0] * d, postH + 0.2, m0[1] + n[1] * d], [2 * w2 + 0.4, 0.12, 0.05], [tdir[0], 0, tdir[1]]);
+  diningSet(G, [m0[0] + n[0] * (D * 0.55), m0[1] + n[1] * (D * 0.55)], n, tdir);
+  return { G, outline, deck, heights: { top: Htop } };
+}
+
+// Обеденный стол на 8–10 мест (массив, 2,4 × 0,95 м) и две скамьи — вдоль площадки.
+function diningSet(G, c, n, tdir) {
+  const L = 2.4, Wd = 0.95, h = 0.75;
+  box(G, 'deck', [c[0], h - 0.03 - 0.05, c[1]], [L, 0.05, Wd], [n[0], 0, n[1]]);
+  for (const sl of [-1, 1]) for (const sw of [-1, 1]) box(G, 'deck', [c[0] + n[0] * sl * (L / 2 - 0.2) + tdir[0] * sw * (Wd / 2 - 0.12), (h - 0.05) / 2 - 0.05, c[1] + n[1] * sl * (L / 2 - 0.2) + tdir[1] * sw * (Wd / 2 - 0.12)], [h - 0.05, 0.08, 0.08], [0, 1, 0]);
+  for (const sw of [-1, 1]) {
+    const bc = [c[0] + tdir[0] * sw * (Wd / 2 + 0.38), c[1] + tdir[1] * sw * (Wd / 2 + 0.38)];
+    box(G, 'deck', [bc[0], 0.42, bc[1]], [L, 0.045, 0.34], [n[0], 0, n[1]]);
+    for (const sl of [-1, 1]) box(G, 'deck', [bc[0] + n[0] * sl * (L / 2 - 0.25), 0.2 - 0.05, bc[1] + n[1] * sl * (L / 2 - 0.25)], [0.04 + 0.4, 0.06, 0.3], [0, 1, 0], { up: [tdir[0], 0, tdir[1]] });
+  }
+}
+
+// ---------- Хоз.блок и навес ----------
+function buildGarage(mats, quality) {
+  const S = SRC.garage;
+  const G = builder();
+  const sh = S.shed;
+  const [x0, z0, x1, z1] = sh.rect.map(mm);
+  const T = mm(sh.wall);
+  const tan = Math.tan(sh.pitch * DEG), cos = Math.cos(sh.pitch * DEG);
+  const thick = 0.26;
+  const half = (x1 - x0) / 2;
+  const ridgeTop = mm(sh.wallTop) + thick / cos + half * tan;
+  const under = (d) => ridgeTop - d * tan - thick / cos;
+  const eave = under(half);
+  const gTop = [[0, eave], [half, under(0)], [x1 - x0, eave]];
+  const ops = (wall) => sh.openings.filter((o) => o.wall === wall);
+  const mk = (o, off, flip = 0) => ({ s0: (flip ? flip - mm(o.to) : mm(o.from)) - off, s1: (flip ? flip - mm(o.from) : mm(o.to)) - off, y0: mm(o.low), y1: mm(o.high), kind: o.type === 'garageDoor' ? 'garage' : o.type });
+  const wall = (a, b, n, top, list) => {
+    const hs = list;
+    const w = wallGeometry(G, { a, b, n, t: T, top, holes: hs.map((h) => rectHole(h.s0, h.s1, h.y0, h.y1)), ends: [false, false] });
+    for (const h of hs) openingAt(G, w, n, T, h, { keystone: h.kind === 'garage' ? true : null });
+    return w;
+  };
+  wall([x1, z0], [x0, z0], [0, -1], gTop, ops('y0').map((o) => mk(o, 0, x1)));
+  const sWall = wall([x0, z1], [x1, z1], [0, 1], gTop, ops('y1').map((o) => mk(o, 0)));
+  wall([x0, z1 - T], [x0, z0 + T], [-1, 0], [[0, eave], [z1 - z0 - 2 * T, eave]], ops('x0').map((o) => mk(o, 0, z1 - T)));
+  wall([x1, z0 + T], [x1, z1 - T], [1, 0], [[0, eave], [z1 - z0 - 2 * T, eave]], ops('x1').map((o) => mk(o, T)));
+  planar(G, 'floor', [[x0, z0], [x1, z0], [x1, z1], [x0, z1]], (x, z) => [x, 0.002, z], [0, 1, 0], ([x, z]) => [x / 1.8, z / 0.72]);
+  const outline = [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
+  frieze(G, [x0, z0], [x0, z1], [-1, 0], eave);
+  frieze(G, [x1, z0], [x1, z1], [1, 0], eave);
+  plinth(G, outline, -0.45);
+  for (const [c, d1, d2] of [[[x0, z0], [1, 0], [0, 1]], [[x1, z0], [-1, 0], [0, 1]], [[x1, z1], [-1, 0], [0, -1]], [[x0, z1], [1, 0], [0, -1]]]) cornerBoards(G, c, d1, d2, 0, eave);
+  gableRoof(G, { rect: [x0, z0, x1, z1], ridgeAxis: 'z', ridgeTop, pitch: sh.pitch, over: mm(sh.overhang), thick, quality });
+  // Ступени у двери под навес и пандус у ворот.
+  const door = sh.openings.find((o) => o.id === 'HD2');
+  const dp = sWall.P((mm(door.from) + mm(door.to)) / 2, 0, 0);
+  steps(G, [dp[0], dp[2]], [1, 0], [0, 1], mm(door.to - door.from) + 0.4);
+  const gate = sh.openings.find((o) => o.id === 'HD1');
+  {
+    const gs0 = mm(gate.from), gs1 = mm(gate.to);
+    const pts = [[gs0 - 0.2, z0], [gs1 + 0.2, z0], [gs1 + 0.2, z0 - 1.0], [gs0 - 0.2, z0 - 1.0]];
+    const mb = G.get('concrete');
+    const base = mb.vertexCount;
+    const ys = [0, 0, -0.27, -0.27];
+    pts.forEach(([x, z], i) => mb.vertex([x, ys[i], z], [0, 0.97, -0.24], [x / 0.8, z / 0.8], 1));
+    mb.idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
+  }
+  // Навес: опоры (пары стоек, обшитые как одна опора), обвязка, кровля, фронтоны.
+  const cp = S.carport;
+  const yPave = -0.25;
+  const eaveTop = yPave + mm(cp.eave);
+  const [cpx0, cpx1] = cp.piersX.map(mm);
+  const axis = (cpx0 + cpx1) / 2;
+  const span2 = (cpx1 - cpx0) / 2;
+  const cTan = Math.tan(cp.roof.pitch * DEG), cCos = Math.cos(cp.roof.pitch * DEG);
+  const cThick = 0.26;
+  const cRidge = eaveTop + cThick / cCos + span2 * cTan;
+  const pierW = 0.2, pierD = mm(cp.pierCladding[1]);
+  // Над проёмами навеса — обшитый доской ригель до карниза (по рендеру), снизу белая планка.
+  const hdr = 0.55;
+  const yHdr = eaveTop - hdr;
+  for (const x of [cpx0, cpx1]) {
+    for (const y of cp.rowsY.map(mm)) {
+      box(G, 'facade', [x, (yPave + yHdr) / 2, y], [yHdr - yPave, pierW, pierD], [0, 1, 0], { up: [1, 0, 0], uvScale: 1 / 0.96, uvSwap: true });
+      box(G, 'plinth', [x, yPave + 0.15, y], [0.3, pierW + 0.03, pierD + 0.03], [0, 1, 0], { up: [1, 0, 0] });
+    }
+    const zA = mm(cp.rowsY[0]) - pierD / 2, zB = mm(cp.rowsY[3]) + pierD / 2;
+    box(G, 'facade', [x, eaveTop - hdr / 2, (zA + zB) / 2], [zB - zA, hdr, pierW + 0.02], [0, 0, 1], { uvScale: 1 / 0.96 });
+    box(G, 'trim', [x, yHdr + 0.02, (zA + zB) / 2], [zB - zA, 0.04, pierW + 0.06], [0, 0, 1]);
+  }
+  for (const x of cp.gablePostsX.map(mm)) {
+    const z = mm(cp.rowsY[3]) + mm(cp.pairGap) / 2;
+    box(G, 'facade', [x, (yPave + yHdr) / 2, z], [yHdr - yPave, 0.2, 0.2], [0, 1, 0], { uvScale: 1 / 0.96, uvSwap: true });
+  }
+  // Фронтоны навеса: обшивка вертикальной доской выше ригеля.
+  const cHalf = span2 + pierW / 2;
+  const cUnder = (d) => cRidge - d * cTan - cThick / cCos;
+  for (const [z, n] of [[mm(cp.rowsY[3]) + pierD / 2 - 0.05, [0, 1]], [mm(cp.roof.y[0]) + 0.35, [0, -1]]]) {
+    const a = n[1] > 0 ? [axis - cHalf, z] : [axis + cHalf, z];
+    const b = n[1] > 0 ? [axis + cHalf, z] : [axis - cHalf, z];
+    const L = 2 * cHalf;
+    wallGeometry(G, { a, b, n, t: 0.08, top: [[0, cUnder(cHalf)], [cHalf, cUnder(0)], [L, cUnder(cHalf)]], y0: yHdr, holes: [], ends: [true, true] });
+    box(G, 'trim', [axis, yHdr + 0.02, z - n[1] * 0.04], [L, 0.04, 0.16], [1, 0, 0]);
+  }
+  const cRect = [axis - span2 - 0.13, mm(cp.roof.y[0]), axis + span2 + 0.13, mm(cp.roof.y[1])];
+  gableRoof(G, { rect: [axis - span2, cRect[1], axis + span2, cRect[3]], ridgeAxis: 'z', ridgeTop: cRidge, pitch: cp.roof.pitch, over: 0.15, barge: 0, thick: cThick, quality });
+  pipesFor(G, outline, -0.25, 2);
+  return { G, outline, heights: { ridgeTop, cRidge } };
+}
+
+// Сцена построек: группы на участке (поворот и подъём на отметку пола).
+export function buildSiteBuildings(lib, { quality = 'high' } = {}) {
+  const mats = siteMaterials(lib);
+  mats.deck = lib.deckWood('oak');
+  mats.gutter.side = THREE.DoubleSide;
+  const root = new THREE.Group();
+  root.name = 'buildings';
+  const out = {};
+  const parts = { guest: buildGuest(mats, quality), grill: buildGrill(mats, quality), garage: buildGarage(mats, quality) };
+  for (const [id, part] of Object.entries(parts)) {
+    const b = BUILDING[id];
+    const g = emit(part.G, mats, id);
+    const at = placer(b);
+    g.position.set(b.origin[0], floorY(id), b.origin[1]);
+    g.rotation.y = -at.theta;
+    g.userData.building = id;
+    root.add(g);
+    const openings = part.G.openings.map((o) => {
+      const [x, z] = at(o.c[0] * 1000, o.c[2] * 1000);
+      const nn = [o.n[0] * at.dirU[0] + o.n[1] * at.dirV[0], o.n[0] * at.dirU[1] + o.n[1] * at.dirV[1]];
+      return { x, z, n: nn, half: o.half, low: o.low, kind: o.kind };
+    });
+    out[id] = { group: g, outline: part.outline, heights: part.heights, openings };
+  }
+  root.userData.parts = out;
+  root.userData.materials = mats;
+  void SITE;
+  return root;
+}

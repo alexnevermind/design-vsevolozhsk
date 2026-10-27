@@ -219,7 +219,7 @@ const buildings = [];
     [mid[0] - tdir[0] * w2 + n[0] * D, mid[1] - tdir[1] * w2 + n[1] * D], [mid[0] + tdir[0] * w2 + n[0] * D, mid[1] + tdir[1] * w2 + n[1] * D]];
   const rooms = [{ ...G.rooms[0], sitePoly: placePoly(at, inner), polyArea: Math.abs(polygonArea(inner.map(([x, y]) => [x / 1000, y / 1000]))) }];
   buildings.push({ id: G.id, name: G.name, at, walls, rooms, footprint: [placePoly(at, outer)], roofs: [{ type: 'tri-gable', outline: placePoly(at, over), ridges }],
-    dining: { poly: placePoly(at, deck), far: at([mid[0] + n[0] * (D + 300), mid[1] + n[1] * (D + 300)]) } });
+    dining: { poly: placePoly(at, deck), far: at([mid[0] + n[0] * (D + 500), mid[1] + n[1] * (D + 500)]) } });
 }
 // Навес с хоз.блоком
 {
@@ -365,9 +365,9 @@ const doorCenter = (b, opId, out = 1.2) => {
 };
 const named = {
   wicket: onSouth((wicket.x0 + wicket.x1) / 2, 0.45),
-  guestEntry: doorCenter(B.guest, 'GD2', 1.4),
-  restDoor: doorCenter(B.guest, 'GG3', 1.4),
-  grillSW: doorCenter(B.grill, 'KD2', 1.0),
+  guestEntry: doorCenter(B.guest, 'GD2', 0.82),
+  restDoor: doorCenter(B.guest, 'GG3', 0.82),
+  grillSW: doorCenter(B.grill, 'KD2', 0.82),
   diningEnd: B.grill.dining.far.map(r3),
 };
 const paths = S.PATHS.map((p) => ({ ...p, pts: p.pts.map((q) => (typeof q[0] === 'string' ? named[q[0]] : q)) }));

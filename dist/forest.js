@@ -19,7 +19,7 @@ export const FOLIAGE = {
 };
 
 // Трубка вдоль полилинии: кольца по seg вершин, цвет вершин по кольцам (кора меняется по высоте).
-function tube(points, radii, seg, colors, uvScale = 1) {
+export function tube(points, radii, seg, colors, uvScale = 1) {
   const pos = [];
   const nrm = [];
   const uv = [];
@@ -73,7 +73,7 @@ function barkColor(t, r) {
 }
 
 // Карточка хвои: одна плоскость (двусторонняя), основание у побега; нормаль — от центра кроны и вверх.
-function foliageCard(out, center, dir, size, rnd, crownC, crownR, tone) {
+export function foliageCard(out, center, dir, size, rnd, crownC, crownR, tone) {
   const g = new THREE.PlaneGeometry(size, size);
   g.translate(0, size * 0.42, 0);
   const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
@@ -95,8 +95,9 @@ function foliageCard(out, center, dir, size, rnd, crownC, crownR, tone) {
   out.push(g);
 }
 
-// Одна сосна высотой 10 м (масштаб задаётся экземпляром). detail: 'near' | 'far'.
-export function buildPineVariant(seed, detail = 'near') {
+// Одна сосна высотой 10 м (масштаб задаётся экземпляром). detail: 'near' | 'far'; spread — ширина кроны
+// (1 — опушка, меньше — сосна в древостое), crownStart — низ кроны в долях высоты.
+export function buildPineVariant(seed, detail = 'near', { spread = 1, crownStart: cs = 0.56 } = {}) {
   const r = rng(seed);
   const far = detail === 'far';
   const H = 10;
@@ -127,9 +128,9 @@ export function buildPineVariant(seed, detail = 'near') {
     const i = Math.min(N - 1, Math.floor(f));
     return trunkR[i] + (trunkR[i + 1] - trunkR[i]) * (f - i);
   };
-  const crownStart = 0.56 + r() * 0.08;
+  const crownStart = cs + r() * 0.08;
   const crownC = at((crownStart + 1) / 2);
-  const crownR = 2.3 + r() * 0.6;
+  const crownR = (2.3 + r() * 0.6) * spread;
   // Пучок хвои: несколько карточек вокруг конца побега, направленных наружу и вверх.
   const cluster = (tip, dir, n, size) => {
     for (let k = 0; k < n; k++) {
@@ -149,7 +150,7 @@ export function buildPineVariant(seed, detail = 'near') {
       if (r() < 0.22 && lv > 0) continue;
       const ang = (b / count) * Math.PI * 2 + r() * 1.3 + lv * 2.4;
       // Нижние ветви почти горизонтальны, верхние восходящие; у всех конец загибается вверх.
-      const len = ((1 - u) ** 0.7 * (2.0 + r() * 1.3) + 0.45) * (0.65 + r() * 0.55);
+      const len = ((1 - u) ** 0.7 * (2.0 + r() * 1.3) + 0.45) * (0.65 + r() * 0.55) * spread;
       const elev = -0.12 + u * 0.95 + (r() - 0.5) * 0.4;
       const dir = new THREE.Vector3(Math.cos(ang), elev, Math.sin(ang)).normalize();
       const pts = [];
@@ -269,7 +270,7 @@ export function foliageMaterial(base) {
   return m;
 }
 
-function instanced(geo, mat, items, { shadows = true, depthMat = null, distMat = null } = {}) {
+export function instanced(geo, mat, items, { shadows = true, depthMat = null, distMat = null } = {}) {
   const im = new THREE.InstancedMesh(geo, mat, items.length);
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
@@ -326,12 +327,12 @@ function treelineTexture() {
   return tex;
 }
 
-function buildTreeline() {
+export function buildTreeline(center = [1.5, 0], baseY = terrainHeight(1.5, 330)) {
   if (typeof document === 'undefined') return null;
   const geo = new THREE.CylinderGeometry(330, 330, 34, 160, 1, true);
   const mat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.05, 0.075, 0.045), alphaMap: treelineTexture(), alphaTest: 0.5, side: THREE.BackSide });
   const m = new THREE.Mesh(geo, mat);
-  m.position.set(1.5, terrainHeight(1.5, 330) + 17 - 2.5, 0);
+  m.position.set(center[0], baseY + 17 - 2.5, center[1]);
   m.name = 'treeline';
   m.userData.excludeAO = true;
   m.renderOrder = -0.5;

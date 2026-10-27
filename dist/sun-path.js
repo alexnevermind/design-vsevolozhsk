@@ -52,8 +52,10 @@ function sunIcon() {
 }
 
 export class SunPath {
-  constructor(scene, invalidate) {
+  constructor(scene, invalidate, { center = CENTER, radius = RADIUS } = {}) {
     this.invalidate = invalidate;
+    this.center = center.clone ? center.clone() : new THREE.Vector3(...center);
+    this.radius = radius;
     this.group = new THREE.Group();
     this.group.name = 'sun-path';
     this.group.visible = false;
@@ -63,8 +65,8 @@ export class SunPath {
     this.lineNight = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineDashedMaterial({ color: 0x8090a8, dashSize: 0.4, gapSize: 0.3, depthTest: false, transparent: true, opacity: 0.7 }));
     this.lineDay.renderOrder = this.lineNight.renderOrder = 9;
     this.group.add(this.lineDay, this.lineNight);
-    const ring = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 96 }, (_, i) => new THREE.Vector3(Math.cos((i / 96) * Math.PI * 2) * RADIUS, 0, Math.sin((i / 96) * Math.PI * 2) * RADIUS))), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, depthTest: false }));
-    ring.position.copy(CENTER);
+    const ring = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 96 }, (_, i) => new THREE.Vector3(Math.cos((i / 96) * Math.PI * 2) * radius, 0, Math.sin((i / 96) * Math.PI * 2) * radius))), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, depthTest: false }));
+    ring.position.copy(this.center);
     this.group.add(ring);
     this.labels = new THREE.Group();
     this.group.add(this.labels);
@@ -76,7 +78,7 @@ export class SunPath {
   }
 
   pointFor(dir) {
-    return new THREE.Vector3(...dir).multiplyScalar(RADIUS).add(CENTER);
+    return new THREE.Vector3(...dir).multiplyScalar(this.radius).add(this.center);
   }
 
   update(solar, hour, visible) {
@@ -104,7 +106,7 @@ export class SunPath {
     const cur = sunState(solar, hour);
     this.icon.position.copy(this.pointFor(cur.dir));
     const na = (solar.northAngle * Math.PI) / 180;
-    this.northLabel.position.set(CENTER.x + Math.sin(na) * (RADIUS + 1.2), CENTER.y + 0.4, CENTER.z - Math.cos(na) * (RADIUS + 1.2));
+    this.northLabel.position.set(this.center.x + Math.sin(na) * (this.radius + 1.2), this.center.y + 0.4, this.center.z - Math.cos(na) * (this.radius + 1.2));
     this.invalidate();
   }
 
