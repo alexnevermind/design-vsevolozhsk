@@ -135,6 +135,28 @@ gtao.updateGtaoMaterial({ radius: 0.5, distanceExponent: 1.4, thickness: 1.2, sc
 gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 });
 gtao.blendIntensity = 0.7;
 composer.addPass(gtao);
+// Разрез «Внутри»: GTAO рисует глубину и нормали всей сцены одним материалом, без плоскостей отсечения
+// материалов, — иначе кровля и мансарда попадают в буфер затенения и проступают поверх помещений. В этом
+// проходе части разрезаемой постройки выше плоскости разреза отбрасываются внутри её габарита в плане.
+const AO_CUT = { uAoCutY: { value: 1e9 }, uAoCutBox: { value: new THREE.Vector4(0, 0, 0, 0) } };
+gtao.normalMaterial.onBeforeCompile = (shader) => {
+  Object.assign(shader.uniforms, AO_CUT);
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nvarying vec3 vAoCutW;')
+    .replace('#include <project_vertex>', `#include <project_vertex>
+      {
+        vec4 aw = vec4( transformed, 1.0 );
+        #ifdef USE_INSTANCING
+          aw = instanceMatrix * aw;
+        #endif
+        vAoCutW = ( modelMatrix * aw ).xyz;
+      }`);
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <clipping_planes_pars_fragment>', '#include <clipping_planes_pars_fragment>\nvarying vec3 vAoCutW;\nuniform float uAoCutY;\nuniform vec4 uAoCutBox;')
+    .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+      if ( vAoCutW.y > uAoCutY && vAoCutW.x > uAoCutBox.x && vAoCutW.x < uAoCutBox.z && vAoCutW.z > uAoCutBox.y && vAoCutW.z < uAoCutBox.w ) discard;`);
+};
+gtao.normalMaterial.customProgramCacheKey = () => 'aoCut1';
 const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.35, 0.6, 0.92);
 bloom.enabled = false;
 composer.addPass(bloom);
@@ -305,6 +327,7 @@ function updateTreeClearance() {
     }
   }
   app.hiddenTrees = hidden;
+  landscape.userData.terrace?.userData.setHiddenTrees(hidden);
   return trees.userData.setHidden(hidden);
 }
 app.updateTreeClearance = updateTreeClearance;
@@ -347,6 +370,11 @@ app.scheduleEnvCapture = scheduleEnvCapture;
 function onStateChange(state, event) {
   app.editor?.applyState(state);
   renderer.shadowMap.needsUpdate = true;
+  const terr = landscape.userData.terrace;
+  if (terr && terr.userData.color !== state.terrace) {
+    terr.userData.setColor(state.terrace);
+    renderer.shadowMap.needsUpdate = true;
+  }
   if (buildings.userData.facade !== state.facade) {
     // В разрезе материалы подменены отсечёнными копиями: снять разрез, сменить фасад, вернуть разрез.
     const c = app.cutInfo?.();
@@ -551,6 +579,7 @@ function clearCut() {
   cut.saved = [];
   cut.proxies = [];
   cut.bid = null;
+  AO_CUT.uAoCutY.value = 1e9;
 }
 function applyCut(bid, level) {
   if (cut.bid === bid && cut.level === level) return;
@@ -561,6 +590,9 @@ function applyCut(bid, level) {
   cut.plane.constant = floorY(bid) + h;
   cut.bid = bid;
   cut.level = level;
+  const bb = new THREE.Box3().setFromObject(part.group);
+  AO_CUT.uAoCutY.value = cut.plane.constant;
+  AO_CUT.uAoCutBox.value.set(bb.min.x - 0.1, bb.min.z - 0.1, bb.max.x + 0.1, bb.max.z + 0.1);
   const meshes = [];
   part.group.traverse((o) => { if (o.isMesh) meshes.push(o); });
   for (const o of meshes) {
@@ -781,7 +813,10 @@ setMode('site', { force: true });
   if (start && VIEWS[start]) { app.focus = start; app.ui.onFocus(start); } else if (start) { app.spot = start; app.spotPois = v.pois ?? null; }
 }
 requestAnimationFrame(frame);
-whenTexturesLoaded(() => {
+// Готово, когда загружены карты и модель унитаза (предметы с ней пересобраны; разрез переприменяется).
+Promise.all([new Promise((r) => whenTexturesLoaded(r)), furniture.wcReady]).then(() => {
+  if (cut.bid) { const c = { bid: cut.bid, level: cut.level }; applyCut(null); applyCut(c.bid, c.level); }
+  app.editor?.applyState(store.get());
   document.getElementById('loading').classList.add('done');
   scheduleEnvCapture(50);
   app.ready = true;
@@ -819,7 +854,7 @@ window.__site = {
   interior: () => {
     let caps = 0, clipped = 0;
     if (cut.bid) parts[cut.bid].group.traverse((o) => { if (!o.isMesh) return; if (o.userData.cut !== undefined && o.visible) caps++; if (o.material?.clippingPlanes?.length) clipped++; });
-    return { ...app.interior, cut: cut.bid, level: cut.bid ? cut.level : app.interior.level, plane: cut.bid ? cut.plane.constant - floorY(cut.bid) : null, caps, clipped };
+    return { ...app.interior, cut: cut.bid, level: cut.bid ? cut.level : app.interior.level, plane: cut.bid ? cut.plane.constant - floorY(cut.bid) : null, caps, clipped, aoCut: AO_CUT.uAoCutY.value < 1e8 ? AO_CUT.uAoCutY.value - floorY(cut.bid ?? 'guest') : null };
   },
   items: (bid = null) => {
     const cam = app.activeCamera();
@@ -832,6 +867,12 @@ window.__site = {
     });
   },
   selectedItem: () => app.editor?.selected?.userData.item.id ?? null,
+  // Унитазы: модель чаши загружена, короб инсталляции на месте.
+  wc: () => app.furniture.filter((h) => h.userData.item.type === 'wcInstalled').map((h) => {
+    let meshes = 0, names = [];
+    h.traverse((o) => { if (o.isMesh && o.visible) { meshes++; if (o.name) names.push(o.name); } });
+    return { id: h.userData.item.id, fixed: !!h.userData.item.fixed, needsWc: !!h.userData.needsWc, meshes, bowl: names.some((n) => n.startsWith('wc_bowl')) };
+  }),
   facade: () => buildings.userData.facade,
   // Материалы фасада и цоколя по постройкам (id материалов и карта цвета): цоколь должен быть одним на все.
   facadeMaterials: () => Object.fromEntries(Object.entries(parts).map(([id, p]) => {
@@ -842,6 +883,7 @@ window.__site = {
     });
     return [id, { facade: [...out.facade], plinth: [...out.plinth] }];
   })),
+  terrace: () => ({ color: landscape.userData.terrace.userData.color, material: landscape.userData.terrace.userData.deckMeshes[0].material.name }),
   lamps: () => ({ count: siteLights.lights.length, on: siteLights.lights.filter((l) => l.k > 0.01).length, glow: siteLights.glow.emissiveIntensity }),
   encodeHash: () => encodeHash(store.get()),
   newSite,

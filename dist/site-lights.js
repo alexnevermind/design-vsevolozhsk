@@ -3,15 +3,15 @@
 // (коэффициент lamp из расчёта солнца); источники — дешёвые точечные (point-lights.js), без теней.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { SITE, SRC, groundY, floorY, placer, BUILDING } from './site-data.js';
+import { SITE, SRC, groundY, floorY, placer, BUILDING, TERRACE } from './site-data.js';
 import { addPointLight } from './point-lights.js';
-import { distToSegment } from './geometry.js';
+import { distToSegment, pointInPolygon } from './geometry.js';
 
 const WARM = new THREE.Color(1.0, 0.74, 0.46);
 const col = (g) => { g.setAttribute('color', new THREE.Float32BufferAttribute(new Array(g.attributes.position.count * 3).fill(1), 3)); return g; };
 
 // Точки дорожек через шаг step с чередованием сторон (отступ от края 0,25 м); пропуск у стволов и концов.
-function bollardSpots(step = 4.2) {
+export function bollardSpots(step = 4.2) {
   const spots = [];
   for (const p of SITE.paths) {
     let acc = step * 0.4, side = 1;
@@ -26,6 +26,8 @@ function bollardSpots(step = 4.2) {
         if (SITE.trees.some((t) => t.status === 'keep' && Math.hypot(t.pos[0] - x, t.pos[1] - z) < 0.6)) continue;
         if (SITE.paths.some((q) => q.pts.some((c, k) => k + 1 < q.pts.length && distToSegment(x, z, c[0], c[1], q.pts[k + 1][0], q.pts[k + 1][1]).d < q.width / 2 + 0.1))) continue;
         if (spots.some((s) => Math.hypot(s.x - x, s.z - z) < 2.2)) continue;
+        // Не на террасе и не вплотную к ней (у ступеней).
+        if (pointInPolygon(x, z, TERRACE.poly) || TERRACE.poly.some((a, k) => { const c = TERRACE.poly[(k + 1) % TERRACE.poly.length]; return distToSegment(x, z, a[0], a[1], c[0], c[1]).d < 0.5; })) continue;
         spots.push({ x, z });
       }
       acc -= L;

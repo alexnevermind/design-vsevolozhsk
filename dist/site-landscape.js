@@ -5,7 +5,8 @@
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rng, pointInPolygon, distToSegment } from './geometry.js';
-import { SITE, BUILDING, groundY, insideSite, POND_LEVEL } from './site-data.js';
+import { SITE, BUILDING, groundY, insideSite, POND_LEVEL, TERRACE } from './site-data.js';
+import { buildTerrace } from './site-terrace.js';
 import { MeshBuilder, hash01 } from './mesh-builder.js';
 import { srgbColor } from './materials.js';
 import { tinted } from './site-arch.js';
@@ -309,34 +310,7 @@ function buildFeatures(lib, quality) {
     }
     group.add(mesh(mergeGeometries(rocks), stoneMat, 'pond:stones', { cast: true }));
   }
-  // Купель: бочка из вертикальной доски Ø 1,8 × 1,1 м, два стальных обруча, вода, ступени.
-  {
-    const { center: [cx, cz], r } = F.plungePool;
-    const y = groundY(cx, cz);
-    const wood = lib.deckWood('oak');
-    const staves = [];
-    const n = 40;
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2;
-      const g = new THREE.BoxGeometry(0.13, 1.1, 0.045).rotateY(-a + Math.PI / 2).translate(cx + Math.cos(a) * (r - 0.025), y + 0.55, cz + Math.sin(a) * (r - 0.025));
-      staves.push(g);
-    }
-    const col = (g) => { g.setAttribute('color', new THREE.Float32BufferAttribute(new Array(g.attributes.position.count * 3).fill(1), 3)); return g; };
-    group.add(mesh(mergeGeometries(staves.map(col)), wood, 'pool:staves', { cast: true }));
-    const steel = lib.blackMetal(false);
-    for (const h of [0.22, 0.88]) group.add(mesh(new THREE.TorusGeometry(r + 0.004, 0.012, 6, 64).rotateX(Math.PI / 2).translate(cx, y + h, cz), steel, 'pool:hoop', { cast: true }));
-    const water = new THREE.Mesh(new THREE.CircleGeometry(r - 0.05, 48).rotateX(-Math.PI / 2).translate(cx, y + 0.92, cz), lib.make('site|poolWater', () => new THREE.MeshPhysicalMaterial({ color: srgbColor('#3d5a5c'), roughness: 0.03, clearcoat: 1, normalMap: lib.tex('water_normal'), normalScale: new THREE.Vector2(0.15, 0.15), envMapIntensity: 1.3 })));
-    water.name = 'pool:water';
-    group.add(water);
-    // Ступени со стороны бани (с востока).
-    const toward = [0.9, -0.43];
-    const l = Math.hypot(...toward);
-    const d = [toward[0] / l, toward[1] / l];
-    for (let k = 0; k < 2; k++) {
-      const x = cx + d[0] * (r + 0.2 + (1 - k) * 0.3), z = cz + d[1] * (r + 0.2 + (1 - k) * 0.3);
-      group.add(mesh(col(new THREE.BoxGeometry(0.6, 0.06, 0.32).rotateY(-Math.atan2(d[1], d[0]) + Math.PI / 2).translate(x, y + 0.38 + k * 0.38, z)), wood, 'pool:step', { cast: true }));
-    }
-  }
+  // Купель — встроена в террасу гостевого дома (site-terrace.js).
   // Спортплощадка: резиновая крошка 30 мм по рельефу с бетонным бортом.
   {
     const rubber = lib.make('site|rubber', () => new THREE.MeshStandardMaterial({ map: lib.tex('rubber_albedo', true), normalMap: lib.tex('rubber_normal'), normalScale: new THREE.Vector2(0.6, 0.6), roughness: 0.95, color: tinted('#a6a39d', 'rubber_albedo'), envMapIntensity: 0.6 }));
@@ -397,6 +371,12 @@ function buildFireZones(lib, quality) {
   return [fire, grill];
 }
 
+// Точка внутри многоугольника или ближе m к его контуру.
+function nearPoly(x, z, poly, m) {
+  if (pointInPolygon(x, z, poly)) return true;
+  return poly.some((a, i) => { const b = poly[(i + 1) % poly.length]; return distToSegment(x, z, a[0], a[1], b[0], b[1]).d < m; });
+}
+
 // ---------- кусты у фасадов ----------
 // Низкие хвойные кусты в 0,95 м от стен; не перед дверями и остеклением до пола, не на дорожках,
 // не у стволов, обеденной площадки и купели.
@@ -422,6 +402,7 @@ function shrubSpots(openings) {
           if (!insideSite(x, z) || pointInPolygon(x, z, BUILDING.garage.carport.floor)) continue;
           if (avoid.some((q) => distToSegment(x, z, q.a[0], q.a[1], q.b[0], q.b[1]).d < q.d)) continue;
           if (pointInPolygon(x, z, dining) || Math.hypot(x - F.plungePool.center[0], z - F.plungePool.center[1]) < F.plungePool.r + 0.9) continue;
+          if (nearPoly(x, z, TERRACE.poly, 0.6)) continue;
           if (low.some((o) => {
             const dx = x - o.x, dz = z - o.z;
             const along = Math.abs(dx * -o.n[1] + dz * o.n[0]);
@@ -502,6 +483,7 @@ function buildTallGrass(count, shrubs) {
     if (SITE.buildings.some((b) => b.footprint.some((p) => pointInPolygon(x, z, p)))) continue;
     if (SITE.paths.some((p) => p.pts.some((q, k) => k + 1 < p.pts.length && distToSegment(x, z, q[0], q[1], p.pts[k + 1][0], p.pts[k + 1][1]).d < p.width / 2 + 0.1))) continue;
     if (pointInPolygon(x, z, F.sport.poly) || Math.hypot(x - F.pond.center[0], z - F.pond.center[1]) < F.pond.r - 0.1) continue;
+    if (nearPoly(x, z, TERRACE.poly, 0.15)) continue;
     pts.push({ x, z, rot: r() * 6.283, s: 0.7 + r() * 0.6, sy: 0.7 + r() * 0.7 });
   }
   const root = [0.045, 0.065, 0.02];
@@ -534,5 +516,8 @@ export function buildSiteLandscape(lib, { quality = 'high', grassCount = 6000, o
   const fires = buildFireZones(lib, quality);
   for (const f of fires) group.add(f.group);
   group.userData.fires = fires;
+  const terrace = buildTerrace(lib, { quality });
+  group.add(terrace);
+  group.userData.terrace = terrace;
   return group;
 }

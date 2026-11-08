@@ -3,14 +3,24 @@
 // препятствия — стены с проёмами дверей (двери открываются при подходе), ограждения, мебель, забор,
 // стволы, пруд, купель, кострище, кусты, опоры навеса.
 import * as THREE from 'three';
-import { SITE, BUILDING, groundY, floorY, insideSite, placer } from './site-data.js';
+import { SITE, BUILDING, groundY, floorY, insideSite, placer, TERRACE, TERRACE_Y, terraceSteps } from './site-data.js';
 import { pointInPolygon, distToSegment, circleObbPush, obb } from './geometry.js';
 import { ROOMS } from './site-edit.js';
 
-export const WALK = { eyeHeight: 1.62, radius: 0.25, speed: 1.45, fastSpeed: 3.2, fov: 62, near: 0.08 };
+// Шаг — быстрый прогулочный (2,6 м/с), с Shift — бег (6 м/с): участок большой, постройки далеко друг от друга.
+export const WALK = { eyeHeight: 1.62, radius: 0.25, speed: 2.6, fastSpeed: 6, fov: 62, near: 0.08 };
+// Входные двери построек (старт у постройки — снаружи перед ней, старт внутри — за ней).
+export const ENTRY = { guest: 'GD2', grill: 'KD2', garage: 'HD2' };
+export const WALK_SPOTS = [
+  { id: 'gate', label: 'Калитка' },
+  { id: 'guest', label: 'Гостевой дом' },
+  { id: 'grill', label: 'Гриль-дом' },
+  { id: 'garage', label: 'Хоз.блок' },
+];
 const KEYMAP = { KeyW: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b', KeyA: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r' };
 const isTyping = (e) => { const t = e.target; return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable); };
 const F = SITE.features;
+const TSTEPS = terraceSteps();
 
 // Ближайшая точка контура многоугольника.
 function nearestEdge(x, z, poly) {
@@ -108,8 +118,11 @@ export class SiteWalkWorld {
   floorAt(x, z, cur = null) {
     let base;
     const bid = this.bw ? this.buildingAt(x, z) : null;
+    const step = TSTEPS.find((s) => pointInPolygon(x, z, s.poly));
     if (bid) base = floorY(bid);
     else if (pointInPolygon(x, z, this.deck)) base = floorY('grill') - 0.05;
+    else if (pointInPolygon(x, z, TERRACE.poly)) base = TERRACE_Y;
+    else if (step) base = step.y;
     else base = groundY(x, z) + 0.03;
     if (!this.bw || cur === null) return base;
     let best = base <= cur + 0.4 ? base : null;
@@ -231,6 +244,7 @@ function placeLabel(x, z, y = null) {
     return room ? `${b.name} · ${room[1].name}` : b.name;
   }
   if (pointInPolygon(x, z, BUILDING.grill.dining)) return 'Обеденная площадка под перголой';
+  if (pointInPolygon(x, z, TERRACE.poly)) return near(F.plungePool.center, F.plungePool.r + 1.0) ? 'Терраса · купель' : 'Терраса гостевого дома';
   if (pointInPolygon(x, z, BUILDING.garage.carport.floor)) return 'Навес для двух машин';
   if (near(F.firePit.center, F.firePit.r + 1.2)) return 'Кострище';
   if (near(F.grillZone.center, F.grillZone.r + 1.0)) return 'Гриль-зона';
@@ -240,7 +254,7 @@ function placeLabel(x, z, y = null) {
   let best = null;
   for (const b of SITE.buildings) {
     const d = Math.min(...b.footprint.map((p) => nearestEdge(x, z, p).d));
-    if (d < 2.5 && (!best || d < best.d)) best = { d, name: b.name };
+    if (d < 4 && (!best || d < best.d)) best = { d, name: b.name };
   }
   if (best) return best.name;
   for (const p of SITE.paths) for (let i = 0; i + 1 < p.pts.length; i++) {
@@ -289,6 +303,7 @@ export class SiteWalk {
     document.getElementById('walk-pause').addEventListener('click', () => this.setPaused(!this.paused));
     document.getElementById('walk-resume').addEventListener('click', () => this.setPaused(false));
     document.getElementById('walk-exit').addEventListener('click', () => this.app.setMode('site'));
+    for (const b of document.querySelectorAll('#walk-go [data-go]')) b.addEventListener('click', () => this.goTo(b.dataset.go));
     window.addEventListener('keydown', (e) => {
       if (!this.active || isTyping(e) || this.app.ui?.modalOpen) return;
       if (e.code === 'Escape') { this.setPaused(true); return; }
@@ -377,10 +392,35 @@ export class SiteWalk {
 
   // Вход: прежний обзор сохраняется; старт — у калитки или перед выбранной постройкой.
   // Старт внутри постройки: центр помещения (или постройки), этаж level; взгляд — к центру постройки.
+  // Старт у постройки: снаружи в 3,4 м перед входной дверью, лицом к двери.
+  outsidePose(bid) {
+    const d = this.app.buildings.userData.parts[bid].openings.find((o) => o.id === ENTRY[bid]);
+    return { x: d.x + d.n[0] * 3.4, z: d.z + d.n[1] * 3.4, yaw: Math.atan2(d.n[0], d.n[1]), pitch: -0.04 };
+  }
+
+  spotPose(spot) {
+    return spot && spot !== 'gate' ? this.outsidePose(spot) : this.startPose();
+  }
+
+  // Переход к месту без выхода из прогулки (кнопки над сценой).
+  goTo(spot) {
+    if (!this.active) return;
+    const p = this.spotPose(spot);
+    p.y = this.world.floorAt(p.x, p.z);
+    const safe = this.world.safeSpot(p.x, p.z, p.y);
+    if (safe) { p.x = safe.x; p.z = safe.z; }
+    this.pose = { ...p };
+    this.eyeY = null;
+    this.keys.clear();
+    if (this.paused) this.setPaused(false);
+    this.apply(1);
+    this.updateInfo();
+    this.app.invalidate();
+  }
+
   insidePose(bid, level = 0, room = null) {
     const part = this.app.buildings.userData.parts[bid];
     // Без помещения — у входной двери изнутри, лицом в постройку.
-    const ENTRY = { guest: 'GD2', grill: 'KD2', garage: 'HD2' };
     const door = !room && level === 0 ? part.openings.find((o) => o.id === ENTRY[bid]) : null;
     if (door) {
       const x = door.x - door.n[0] * 1.2, z = door.z - door.n[1] * 1.2, y = floorY(bid);
@@ -412,10 +452,10 @@ export class SiteWalk {
     return Math.atan2(Math.sin(best), Math.cos(best));
   }
 
-  enter({ pose = null, inside = null, level = 0, room = null } = {}) {
+  enter({ pose = null, inside = null, level = 0, room = null, spot = null } = {}) {
     const app = this.app;
     this.saved = { position: app.camera.position.clone(), target: app.controls.target.clone() };
-    const p = { ...(pose ?? (inside ? this.insidePose(inside, level, room) : this.startPose())) };
+    const p = { ...(pose ?? (inside ? this.insidePose(inside, level, room) : this.spotPose(spot))) };
     if (p.y === undefined) p.y = this.world.floorAt(p.x, p.z);
     const safe = this.world.safeSpot(p.x, p.z, p.y);
     if (safe) { p.x = safe.x; p.z = safe.z; }

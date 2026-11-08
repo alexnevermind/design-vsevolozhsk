@@ -115,7 +115,7 @@ def main():
     move_tree(by["facade_board"], colls["board"])
     colls["plaster"] = new_collection("Фасад 2 · штукатурка и кирпич", master)
     move_tree(by["facade_plaster"], colls["plaster"])
-    for key, title in (("ground", "Рельеф и газон"), ("landscape", "Благоустройство"),
+    for key, title in (("ground", "Рельеф и газон"), ("landscape", "Благоустройство"), ("terrace", "Терраса гостевого дома и купель"),
                        ("fire_zones", "Очаг гриль-дома"), ("trees", "Деревья по плану"), ("backdrop", "Фон · лес за забором"),
                        ("lamps", "Фонари и столбики")):
         if key in by:

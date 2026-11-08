@@ -379,14 +379,7 @@ function buildGuest(mats, quality) {
     chimney(G, x, z, yRoof, (inMain ? mainRidge : wingRidge) + 0.6, mm(c.d));
   }
   pipesFor(G, outline, -0.25, 1);
-  // Ступени у дверей (пол +0,25 над планировкой).
-  const door = (wid, o, n) => { const w = W[wid]; const sc = (o.s0 + o.s1) / 2; const p = w.P(sc, 0, 0); steps(G, [p[0], p[2]], w.u, n, o.s1 - o.s0 + 0.5); };
-  const entry = S.openings.find((o) => o.id === 'GD2');
-  door('link-y1', { s0: mm(entry.from) - lx0, s1: mm(entry.to) - lx0 }, [0, 1]);
-  const live = S.openings.find((o) => o.id === 'GD1');
-  door('main-x1', { s0: mm(live.from) - T, s1: mm(live.to) - T }, [1, 0]);
-  const rest = S.openings.find((o) => o.id === 'GG3');
-  door('wing-y1', { s0: mm(rest.door[0]) - wx0 - T, s1: mm(rest.door[1]) - wx0 - T }, [0, 1]);
+  // Двери GD1, GD2 и GG3 выходят на открытую террасу вровень с полом (site-terrace.js) — ступеней нет.
   const ceilAt = (x, z, level = 0) => (level === 0 && pointInPolygon(x, z, slab) ? f2 - 0.22 : ceilY(x, z));
   return { G, outline, heights: { mainRidge, wingRidge, linkRidge, floor2: f2 }, levels: [0, f2], ceilAt };
 }

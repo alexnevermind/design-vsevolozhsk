@@ -317,7 +317,8 @@ export function buildSiteTrees(lib, { backdrop = 360, detail = 'near' } = {}) {
   if (line) { line.userData.far = true; group.add(line); }
   group.userData.planned = planned;
   group.userData.backdrop = back;
-  // Скрытие деревьев по набору id (заслоняющие постройку на виде камеры): масштаб экземпляра 0.
+  // Скрытие деревьев по набору id (заслоняющие постройку на виде камеры): масштаб экземпляра 0 (вырез в
+  // настиле террасы под скрытым деревом закрывает вставка — site-terrace.js).
   let hiddenKey = '';
   group.userData.setHidden = (ids) => {
     const key = [...ids].sort().join(',');

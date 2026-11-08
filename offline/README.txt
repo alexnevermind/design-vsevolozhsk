@@ -12,4 +12,4 @@
 
 Состав: Vsevolozhsk.html (код, стили, Three.js 0.183.2, данные участка и построек, карты, модель),
 README.txt, THREE-LICENSE.txt, THIRD-PARTY-LICENSES.txt, SHA256SUMS.txt.
-Сборка: 2026-10-27, npm run package:offline.
+Сборка: 2026-11-08, npm run package:offline.

@@ -13,11 +13,12 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, v, i, a) => (v.startsWith('--') ? [...acc, [v.slice(2), a[i + 1]]] : acc), []));
 const OUT = join(ROOT, args.out || 'docs/img');
 const ONLY = args.only ? args.only.split(',') : null;
-const STAGE = ['3', '4'].includes(args.stage) ? Number(args.stage) : 2;
-// Этап 4 — итоговые кадры 1920 × 1080 в высоком качестве.
+const STAGE = args.stage === 'fix' ? 'fix' : ['3', '4'].includes(args.stage) ? Number(args.stage) : 2;
+// Этап 4 — итоговые кадры 1920 × 1080 в высоком качестве; «fix» — кадры правок после этапа 4 (1600 × 1000).
+const HQ = STAGE === 4 || STAGE === 'fix';
 const VIEWPORT = STAGE === 4 ? { width: 1920, height: 1080 } : { width: 1600, height: 1000 };
-const QUERY = STAGE === 4 ? 'still=1&quality=high' : 'still=1';
-const PREFIX = STAGE === 4 ? 'final' : `stage${STAGE}`;
+const QUERY = HQ ? 'still=1&quality=high' : 'still=1';
+const PREFIX = STAGE === 4 ? 'final' : STAGE === 'fix' ? 'fix' : `stage${STAGE}`;
 const PORT = 8773;
 mkdirSync(OUT, { recursive: true });
 const server = spawn('python3', ['-m', 'http.server', String(PORT), '--bind', '127.0.0.1', '--directory', join(ROOT, 'dist')], { stdio: 'ignore' });
@@ -86,7 +87,16 @@ const SHOTS4 = [
   ['walk-mansard', `${st('board', 13)} ${WALK_AT} walkAt("guest", 2.6, 3.9, 2.6, 8.6, 1, 0.05)`, true],
   ['walk-grill-evening', `${st('board', 22.6)} app.setMode("walk", { walk: { inside: "grill", level: 0 } })`, true],
 ];
-const LIST = STAGE === 4 ? SHOTS4 : STAGE === 3 ? SHOTS3 : SHOTS;
+const cam = (pos, target) => `window.__site.setCamera(${JSON.stringify(pos)}, ${JSON.stringify(target)})`;
+const SHOTS_FIX = [
+  ['terrace', `${st('board', 13)} app.store.commit((s) => { s.terrace = "oak"; }, "кадр"); ${cam([12.5, 6.2, 34.0], [19.6, 0.6, 26.8])}`, true],
+  ['terrace-ash', `${st('board', 16)} app.store.commit((s) => { s.terrace = "ash"; }, "кадр"); ${cam([14.2, 2.8, 34.6], [19.6, 0.3, 27.2])}`, true],
+  ['terrace-walk', `${st('board', 13)} app.store.commit((s) => { s.terrace = "oak"; }, "кадр"); app.setMode("walk", { walk: { pose: { x: 14.6, z: 24.9, yaw: -1.5, pitch: -0.12 } } })`, true],
+  ['wc', `${st('board', 13)} ${WALK_AT} walkAt("guest", 10.0, 2.35, 10.96, 0.4, 0, -0.3)`, true],
+  ['roof-gable', `${st('board', 13)} ${cam([10.2, 5.9, 19.0], [17.1, 5.5, 19.3])}`, true],
+  ['interior', `${st('board', 13)} app.enterInterior("guest", 0)`, false],
+];
+const LIST = STAGE === 'fix' ? SHOTS_FIX : STAGE === 4 ? SHOTS4 : STAGE === 3 ? SHOTS3 : SHOTS;
 
 const browser = await launchChromium();
 const ctx = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1 });
@@ -100,7 +110,7 @@ await page.goto(`${BASE}index.html?${QUERY}`, { waitUntil: 'domcontentloaded' })
 await page.waitForFunction(() => window.__site?.ready?.() && window.__site.texturesPending() === 0, null, { timeout: 300000 });
 await page.waitForTimeout(1500);
 // Итоговые кадры — без интерфейса прогулки (кнопки, прицел, подпись места).
-if (STAGE === 4) await page.addStyleTag({ content: '.walk-top, .crosshair, .walk-info, .toasts { display: none !important; }' });
+if (HQ) await page.addStyleTag({ content: '.walk-top, .walk-go, .crosshair, .walk-info, .toasts { display: none !important; }' });
 for (const [name, action, hide] of LIST) {
   if (ONLY && !ONLY.includes(name)) continue;
   await page.evaluate(({ action, hide }) => {
@@ -116,8 +126,8 @@ for (const [name, action, hide] of LIST) {
   await page.evaluate(() => new Promise((r) => { window.__site.app.invalidate(); requestAnimationFrame(() => requestAnimationFrame(r)); }));
   await page.waitForTimeout(300);
   // Итоговые кадры — JPEG высокого качества (1920 × 1080 PNG весит ≈ 4 МБ).
-  const ext = STAGE === 4 ? 'jpg' : 'png';
-  await page.screenshot({ path: join(OUT, `${PREFIX}-${name}.${ext}`), timeout: 300000, ...(STAGE === 4 ? { type: 'jpeg', quality: 92 } : {}) });
+  const ext = HQ ? 'jpg' : 'png';
+  await page.screenshot({ path: join(OUT, `${PREFIX}-${name}.${ext}`), timeout: 300000, ...(HQ ? { type: 'jpeg', quality: 92 } : {}) });
   console.log(`✔ ${PREFIX}-${name}.${ext}`);
 }
 await page.evaluate(() => { const app = window.__site.app; if (app.mode === 'walk') app.setMode('site'); if (app.hidden) app.toggleUI(); });

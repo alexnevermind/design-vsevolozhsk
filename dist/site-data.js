@@ -61,10 +61,29 @@ const smooth = (e0, e1, x) => {
   return t * t * (3 - 2 * t);
 };
 
-// Площадки планировки: постройки — «пол − 0,25» (ровно 0,6 м от стен, переход до 2,5 м); пол навеса —
-// на уровне планировки хоз.блока (дверь хоз.блока — ступень 0,25 с плитки).
+// Открытая терраса гостевого дома: настил вровень с чистым полом (на 15 мм ниже — порог дверей).
+export const TERRACE = SITE.features.terrace;
+export const TERRACE_Y = SITE.levels.guest.floor - DATUM - 0.015;
+// Ступени террасы: проступи (сверху вниз) — прямоугольники в плане и высота верха.
+export function terraceSteps() {
+  const st = TERRACE.stair;
+  const u = [-st.out[1], st.out[0]];
+  const [cx, cz] = st.center;
+  const ground = SITE.levels.guest.pad - DATUM;
+  const rise = (TERRACE_Y - ground) / (st.treads + 1);
+  const out = [];
+  for (let i = 1; i <= st.treads; i++) {
+    const a = st.run * (i - 1), b = st.run * i;
+    const c = (d, s) => [cx + st.out[0] * d + u[0] * s, cz + st.out[1] * d + u[1] * s];
+    out.push({ y: TERRACE_Y - rise * i, rise, poly: [c(a, -st.width / 2), c(b, -st.width / 2), c(b, st.width / 2), c(a, st.width / 2)] });
+  }
+  return out;
+}
+
+// Площадки планировки: постройки — «пол − 0,25» (ровно 0,6 м от стен, переход до 2,5 м), у гостевого дома —
+// вместе с террасой; пол навеса — на уровне планировки хоз.блока (дверь хоз.блока — ступень 0,25 с плитки).
 export const PADS = [
-  ...SITE.buildings.map((b) => ({ id: b.id, polys: b.footprint, h: SITE.levels[b.id].pad, flat: SITE.levels[b.id].grade.flat, blend: SITE.levels[b.id].grade.blend })),
+  ...SITE.buildings.map((b) => ({ id: b.id, polys: b.id === 'guest' ? [...b.footprint, TERRACE.poly] : b.footprint, h: SITE.levels[b.id].pad, flat: SITE.levels[b.id].grade.flat, blend: SITE.levels[b.id].grade.blend })),
   { id: 'carport', polys: [BUILDING.garage.carport.floor], h: SITE.levels.garage.pad, flat: 0.3, blend: 2.2 },
 ];
 

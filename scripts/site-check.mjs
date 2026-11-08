@@ -159,10 +159,10 @@ try {
   await holdUntil(page, 'KeyW', (z) => window.__site.walk().z < z - 2, z0, 40000);
   w = await api(page, () => window.__site.walk());
   record('Прогулка: W — движение на север по дорожке', w.z < z0 - 1 && Math.abs(w.x - 11.53) < 0.6, { note: `${z0.toFixed(2)} → ${w.z.toFixed(2)}` });
-  // Упор в западную стену гостевого дома: поставить перед стеной лицом на восток и идти.
+  // Упор в западную стену гостевого дома (глухой участок южнее двери GG1): лицом на восток и идти.
   const guest = SITE.buildings.find((b) => b.id === 'guest');
   const gx0 = Math.min(...guest.footprint[0].map((p) => p[0]));
-  await api(page, (x) => { const wk = window.__site.app.walk; wk.pose.x = x - 1.6; wk.pose.z = 19.2; wk.pose.yaw = -Math.PI / 2; wk.app.invalidate(); }, gx0);
+  await api(page, (x) => { const wk = window.__site.app.walk; wk.pose.x = x - 1.6; wk.pose.z = 21.3; wk.pose.yaw = -Math.PI / 2; wk.app.invalidate(); }, gx0);
   await page.waitForTimeout(400);
   await holdUntil(page, 'KeyW', () => false, null, 10000);
   w = await api(page, () => window.__site.walk());
@@ -280,6 +280,52 @@ try {
   await settle(page, 400);
   inn = await api(page, () => window.__site.interior());
   record('Возврат к участку: разрез снят', inn.cut === null && inn.caps === 0 && (await api(page, () => window.__site.mode())) === 'site');
+  scenario = 'desktop';
+
+  // ---------- правки после этапа 4: кровля, унитаз, «Внутри», прогулка, терраса ----------
+  scenario = 'fixes';
+  const wcs = await api(page, () => window.__site.wc());
+  record('Унитазы с инсталляцией: модель чаши загружена, короб на месте, встроены', wcs.length === 2 && wcs.every((w) => w.bowl && !w.needsWc && w.fixed && w.meshes > 8), { note: wcs.map((w) => `${w.id}: ${w.meshes} деталей`).join(', ') });
+  await page.locator('.modes [data-mode="interior"]').click();
+  await settle(page, 600);
+  inn = await api(page, () => window.__site.interior());
+  record('«Внутри»: проход затенения (AO) отбрасывает верх постройки по плоскости разреза', inn.aoCut !== null && Math.abs(inn.aoCut - inn.plane) < 1e-6, { note: `AO ${inn.aoCut?.toFixed(2)} м, разрез ${inn.plane?.toFixed(2)} м` });
+  await page.locator('.modes [data-mode="site"]').click();
+  await settle(page, 400);
+  inn = await api(page, () => window.__site.interior());
+  record('Возврат к участку: AO снова видит всю сцену', inn.aoCut === null);
+  // Цвет настила террасы — кнопками в панели.
+  const T = SITE.features.terrace;
+  for (const [id, mat] of [['walnut', 'terraceDeck|walnut'], ['ash', 'terraceDeck|ash'], ['oak', 'terraceDeck|oak']]) {
+    await page.locator(`[data-deck="${id}"]`).click();
+    await page.waitForTimeout(400);
+    const t = await api(page, () => ({ s: window.__site.state().terrace, t: window.__site.terrace() }));
+    record(`Терраса: цвет «${id}» — настил и состояние`, t.s === id && t.t.color === id && t.t.material === mat, { note: t.t.material });
+  }
+  // Прогулка: старт у гостевого дома (на террасе), переходы к гриль-дому и хоз.блоку кнопками.
+  await page.locator('[data-walk="guest"]').click();
+  await page.waitForTimeout(1200);
+  w = await api(page, () => window.__site.walk());
+  const tY = SITE.levels.guest.floor - SITE.datum - 0.015;
+  record('Прогулка «Гостевой дом»: старт на террасе перед входом', w.active && pointInPolygon(w.x, w.z, T.poly) && Math.abs(w.floor - tY) < 0.01, { note: `${w.x.toFixed(2)}, ${w.z.toFixed(2)} · ${w.place}` });
+  for (const bid of ['grill', 'garage']) {
+    await page.locator(`#walk-go [data-go="${bid}"]`).click();
+    await page.waitForTimeout(800);
+    w = await api(page, () => window.__site.walk());
+    const b = SITE.buildings.find((q) => q.id === bid);
+    const d = Math.min(...b.footprint[0].map((p, i, a) => { const q = a[(i + 1) % a.length]; const t = Math.max(0, Math.min(1, ((w.x - p[0]) * (q[0] - p[0]) + (w.z - p[1]) * (q[1] - p[1])) / ((q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2))); return Math.hypot(w.x - p[0] - t * (q[0] - p[0]), w.z - p[1] - t * (q[1] - p[1])); }));
+    record(`Прогулка: кнопка «${b.name}» — сразу у постройки`, w.active && d < 4.5 && !insideAnyBuilding(w.x, w.z), { note: `${d.toFixed(2)} м от стены · ${w.place}` });
+  }
+  // Быстрый шаг: за 1,5 с удержания W — дальше 2,5 м (было 1,45 м/с).
+  await page.locator('#walk-go [data-go="gate"]').click();
+  await page.waitForTimeout(600);
+  const g0 = await api(page, () => window.__site.walk());
+  const t0w = Date.now();
+  await holdUntil(page, 'KeyW', (z) => window.__site.walk().z < z - 2.5, g0.z, 40000);
+  const g1 = await api(page, () => window.__site.walk());
+  record('Прогулка: шаг быстрее (2,6 м/с, Shift — 6 м/с)', g0.z - g1.z > 2.5, { note: `${(g0.z - g1.z).toFixed(2)} м за ${((Date.now() - t0w) / 1000).toFixed(1)} с программного WebGL` });
+  await page.locator('#walk-exit').click();
+  await page.waitForTimeout(600);
   scenario = 'desktop';
 
   // Ссылка: состояние в адресе восстанавливается.

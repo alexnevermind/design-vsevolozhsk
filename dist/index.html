@@ -78,11 +78,17 @@
       <button id="walk-pause">Пауза</button>
       <button id="walk-exit">Вернуться к обзору</button>
     </div>
+    <div class="walk-go ui-walk" id="walk-go" role="group" aria-label="Перейти к">
+      <button data-go="gate">Калитка</button>
+      <button data-go="guest">Гостевой дом</button>
+      <button data-go="grill">Гриль-дом</button>
+      <button data-go="garage">Хоз.блок</button>
+    </div>
     <div class="crosshair" aria-hidden="true"></div>
     <div class="walk-info" id="walk-info"></div>
     <div class="walk-paused" id="walk-paused" hidden>
       <p><strong>Прогулка на паузе</strong></p>
-      <p>WASD / стрелки — движение, Shift — быстрее, мышь — взгляд, Esc — пауза.</p>
+      <p>WASD / стрелки — движение, Shift — бегом, мышь — взгляд, Esc — пауза. Кнопки сверху — сразу к постройке.</p>
       <button id="walk-resume">Продолжить</button>
     </div>
     <div class="joystick" id="joystick" aria-label="Джойстик движения"><div class="stick" id="stick"></div></div>

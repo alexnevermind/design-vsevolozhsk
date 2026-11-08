@@ -4,10 +4,10 @@
 // Координаты предметов — локальные метры постройки (x, z — оси листа), y = 0 — чистый пол этажа.
 import * as THREE from 'three';
 import { buildFurniture, rbox, cyl, part } from './furniture-detail.js';
-import { buildFixture } from './fixtures.js';
+import { buildFixture, loadWcModel } from './fixtures.js';
 import { FireZone } from './bbq-zone.js';
 import { applyPointLights } from './point-lights.js';
-import { interiorLight } from './site-arch.js';
+import { interiorLight, TILE } from './site-arch.js';
 import { books, vase } from './decor.js';
 import { SRC } from './site-data.js';
 
@@ -263,6 +263,40 @@ function hearthHood(lib, top) {
   return g;
 }
 
+// Подвесной унитаз на инсталляции: стальная рама с бачком скрыта в коробе у стены (0,6 × 1,2 м, глубина
+// 0,2 м), короб облицован светло-серым керамогранитом 600 × 600 (швы — карта нормалей плитки пола), сверху
+// полка; на коробе — клавиша смыва, к нему крепится чаша (модель базы, Blender). Предмет встроенный:
+// короб — часть стены санузла.
+const WC_BOX = { w: 0.6, d: 0.2, h: 1.2 };
+function wcInstalled(lib) {
+  const g = new THREE.Group();
+  const D = WC_BOX.d + 0.65;
+  const tile = lib.make('wcBoxTile', () => new THREE.MeshPhysicalMaterial({
+    color: new THREE.Color().setStyle('#d2cfc9', THREE.SRGBColorSpace), normalMap: lib.tex('tile_normal'), normalScale: new THREE.Vector2(0.7, 0.7),
+    roughness: 0.42, envMapIntensity: 0.7,
+  }), { interior: true });
+  const zb = -D / 2 + WC_BOX.d / 2;
+  const boxGeo = new THREE.BoxGeometry(WC_BOX.w, WC_BOX.h, WC_BOX.d);
+  // Плитка 600 × 600 по граням короба: UV в метрах / шаг плитки.
+  const pos = boxGeo.attributes.position, nrm = boxGeo.attributes.normal, uv = boxGeo.attributes.uv;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i) + WC_BOX.h / 2, z = pos.getZ(i);
+    const ax = Math.abs(nrm.getX(i)), ay = Math.abs(nrm.getY(i));
+    const [u, v] = ay > 0.5 ? [x, z] : ax > 0.5 ? [z, y] : [x, y];
+    uv.setXY(i, u / TILE.tile + 0.5, v / TILE.tile);
+  }
+  part(g, boxGeo, tile, 0, WC_BOX.h / 2, zb);
+  // Полка-столешница (выступ 15 мм).
+  part(g, rbox(WC_BOX.w + 0.03, 0.02, WC_BOX.d + 0.03, 0.004), tile, 0, WC_BOX.h + 0.01, zb + 0.0075);
+  const wc = buildFixture('toilet', lib);
+  // Модель: стена — плоскость z = −0,325 (тыл чаши), рама инсталляции за ней. Чаша — к лицу короба.
+  wc.position.z = -D / 2 + WC_BOX.d + 0.325;
+  wc.traverse((o) => { if (o.isMesh && o.userData.installation) o.visible = false; });
+  g.add(wc);
+  g.userData.needsWc = !!wc.userData.needsWc;
+  return g;
+}
+
 // ---------- расстановка по листам ----------
 // x, z — центр предмета в мм листа; rot — поворот (°), 0 — перед к +z листа; level — этаж (0 / мансарда).
 // face(x, z) — разворот «лицом к точке».
@@ -295,9 +329,9 @@ export function layout() {
       { id: 'coffee', type: 'coffee', room: 'G02', x: 2150, z: 6250, rot: 0, label: 'Журнальный стол' },
       { id: 'closet', type: 'closet', room: 'G03', x: 5905, z: 2280, rot: 0, w: 1400, d: 600, label: 'Шкаф' },
       { id: 'vanityWc', type: 'vanity', room: 'G04', x: 7030, z: 2460, rot: 90, label: 'Раковина' },
-      { id: 'toiletWc', type: 'toilet', room: 'G04', x: 8380, z: 2550, rot: -90, label: 'Унитаз' },
+      { id: 'toiletWc', type: 'wcInstalled', room: 'G04', x: 8280, z: 2550, rot: -90, fixed: true, label: 'Унитаз с инсталляцией' },
       { id: 'shower', type: 'shower', room: 'G05', x: 9440, z: 745, rot: 0, label: 'Душ' },
-      { id: 'toiletSh', type: 'toilet', room: 'G05', x: 11000, z: 600, rot: 0, label: 'Унитаз' },
+      { id: 'toiletSh', type: 'wcInstalled', room: 'G05', x: 10960, z: 700, rot: 0, fixed: true, label: 'Унитаз с инсталляцией' },
       { id: 'benchSh', type: 'bench', room: 'G05', x: 10700, z: 2410, rot: 180, len: 1100, label: 'Скамья' },
       { id: 'saunaBench', type: 'saunaBenches', room: 'G06', x: 14240, z: 1450, rot: 90, len: 2300, fixed: true, label: 'Полок' },
       { id: 'saunaStove', type: 'saunaStove', room: 'G06', x: 11960, z: 2300, rot: 90, fixed: true, label: 'Печь сауны' },
@@ -341,6 +375,7 @@ export function footprint(o) {
     case 'closet': return [mm(o.w), mm(o.d)];
     case 'vanity': return [0.72, 0.48];
     case 'toilet': return [0.4, 0.65];
+    case 'wcInstalled': return [WC_BOX.w, WC_BOX.d + 0.65];
     case 'shower': return [0.91, 0.93];
     case 'bench': return [mm(o.len), 0.38];
     case 'saunaBenches': return [mm(o.len), 1.4];
@@ -368,6 +403,7 @@ function buildItem(o, lib, ctx) {
     case 'roundStove': return roundStove(lib, ctx.ceilAt(o) - o.yLevel);
     case 'closet': return closet(mm(o.w), mm(o.d));
     case 'vanity': case 'toilet': case 'shower': return buildFixture(o.type, lib);
+    case 'wcInstalled': return wcInstalled(lib);
     case 'bench': return bench(mm(o.len));
     case 'saunaBenches': return saunaBenches(lib, mm(o.len));
     case 'saunaStove': return saunaStove(lib, ctx.ceilAt(o) - o.yLevel);
@@ -388,6 +424,13 @@ function buildItem(o, lib, ctx) {
 export function buildSiteFurniture(lib, parts, { ceilAt, quality = 'high' } = {}) {
   const slots = slotMaterials(lib);
   const items = [];
+  const prepare = (g) => g.traverse((m) => {
+    if (!m.isMesh) return;
+    if (!m.material && m.userData.slot) m.material = slots[m.userData.slot] ?? slots.joinery;
+    if (!m.material) m.material = slots.joinery;
+    m.castShadow = m.castShadow !== false;
+    m.receiveShadow = true;
+  });
   const fires = [];
   const L = layout();
   for (const [bid, list] of Object.entries(L)) {
@@ -398,13 +441,7 @@ export function buildSiteFurniture(lib, parts, { ceilAt, quality = 'high' } = {}
     part0.group.add(root);
     for (const o of list) {
       const g = buildItem(o, lib, { ceilAt: (it) => ceilAt(bid, mm(it.x), mm(it.z), it.level ?? 0) });
-      g.traverse((m) => {
-        if (!m.isMesh) return;
-        if (!m.material && m.userData.slot) m.material = slots[m.userData.slot] ?? slots.joinery;
-        if (!m.material) m.material = slots.joinery;
-        m.castShadow = m.castShadow !== false;
-        m.receiveShadow = true;
-      });
+      prepare(g);
       const holder = new THREE.Group();
       holder.name = `item:${bid}:${o.id}`;
       holder.add(g);
@@ -412,6 +449,7 @@ export function buildSiteFurniture(lib, parts, { ceilAt, quality = 'high' } = {}
       holder.rotation.y = (o.rot ?? 0) * DEG;
       const [w, d] = footprint(o);
       holder.userData.item = { ...o, building: bid, w, d, base: [mm(o.x), mm(o.z), o.rot ?? 0] };
+      holder.userData.needsWc = !!g.userData.needsWc;
       root.add(holder);
       items.push(holder);
       if (o.type === 'hearth') {
@@ -426,7 +464,7 @@ export function buildSiteFurniture(lib, parts, { ceilAt, quality = 'high' } = {}
   }
   // Свет помещений и приглушение рассеянного света — для всех материалов мебели.
   const seen = new Set();
-  for (const it of items) it.traverse((m) => {
+  const light = (root) => root.traverse((m) => {
     if (!m.isMesh || !m.material || seen.has(m.material)) return;
     seen.add(m.material);
     if (m.material.isMeshStandardMaterial && !m.material.userData.glass) {
@@ -434,6 +472,23 @@ export function buildSiteFurniture(lib, parts, { ceilAt, quality = 'high' } = {}
       interiorLight(m.material);
     }
   });
-  return { items, fires };
+  for (const it of items) light(it);
+  // Модель унитаза грузится отдельно (GLB): предметы с ней пересобираются после загрузки.
+  const wcReady = loadWcModel().then(() => {
+    let n = 0;
+    for (const h of items) {
+      if (!h.userData.needsWc) continue;
+      const o = h.userData.item;
+      const g = buildItem(o, lib, {});
+      prepare(g);
+      h.clear();
+      h.add(g);
+      light(g);
+      h.userData.needsWc = false;
+      n++;
+    }
+    return n;
+  });
+  return { items, fires, wcReady };
 }
 const K_HEARTH_R = SRC.grill.hearth.r + 80;

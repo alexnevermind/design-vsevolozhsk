@@ -1,5 +1,5 @@
 // Состояние конфигуратора участка: солнце (место, дата, время), светильники, костёр, вариант фасада
-// (доска или штукатурка с кирпичным цоколем) и положения мебели. Сохранение в браузере и ссылка
+// (доска или штукатурка с кирпичным цоколем), цвет настила террасы и положения мебели. Сохранение в браузере и ссылка
 // #s=1.<base64url JSON>; история — core.js.
 import SITE from './data/site-spec.js';
 
@@ -8,6 +8,7 @@ export const STORAGE_KEY = 'vsevolozhsk-site-v1';
 export const HASH_PREFIX = '#s=1.';
 export const FIRE_MODES = ['auto', 'on', 'off'];
 export const FACADE_KINDS = ['board', 'plaster'];
+export const TERRACE_COLORS = SITE.features.terrace.colors;
 export const FOCUS = ['site', 'guest', 'grill', 'garage'];
 
 export function newSite() {
@@ -20,6 +21,7 @@ export function newSite() {
     fire: 'auto',
     notes: false,
     facade: 'board',
+    terrace: TERRACE_COLORS[0],
     items: {},
   };
 }
@@ -39,6 +41,7 @@ export function validate(s) {
   if (!(s.hour >= 0 && s.hour < 24)) e.push('время');
   if (!FIRE_MODES.includes(s.fire)) e.push('режим костра');
   if (!FACADE_KINDS.includes(s.facade)) e.push('отделка фасада');
+  if (!TERRACE_COLORS.includes(s.terrace)) e.push('цвет террасы');
   if (!s.items || typeof s.items !== 'object' || Array.isArray(s.items)) e.push('мебель');
   else for (const [k, v] of Object.entries(s.items)) {
     if (!/^(guest|grill|garage):[\w-]+$/.test(k) || !Array.isArray(v) || v.length !== 3 || !v.every((n) => Number.isFinite(n) && Math.abs(n) < 50)) { e.push(`мебель: ${k}`); break; }

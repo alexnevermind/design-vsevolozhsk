@@ -7,6 +7,11 @@ import { encodeHash, newSite } from './site-state.js';
 import { SITE, BUILDING } from './site-data.js';
 import { FACADES } from './site-arch.js';
 import { ROOMS } from './site-edit.js';
+import { WALK_SPOTS } from './site-walk.js';
+import { TERRACE_COLORS } from './site-state.js';
+import { MATERIALS } from './choices.js';
+
+const DECK_LABELS = { oak: 'Медовый дуб', walnut: 'Орех', smoked: 'Копчёный дуб', ash: 'Графит' };
 
 const $ = (id) => document.getElementById(id);
 const fmt = (v, d = 1) => v.toFixed(d).replace('.', ',');
@@ -88,13 +93,25 @@ export class SiteUI {
         <span class="pick-title">Фасады всех построек</span>
         <div class="seg">${Object.entries(FACADES).map(([id, f]) => `<button data-facade="${id}" aria-pressed="${this.state.facade === id}" title="${esc(f.note)}"><i class="sw sw-${id}"></i>${esc(f.label)}</button>`).join('')}</div>
       </div>
+      <div class="facade-pick deck-pick" role="group" aria-label="Цвет террасы">
+        <span class="pick-title">Терраса гостевого дома — цвет настила</span>
+        <div class="seg">${TERRACE_COLORS.map((id) => `<button data-deck="${id}" aria-pressed="${this.state.terrace === id}" title="${esc(DECK_LABELS[id])}"><i class="sw sw-deck" style="--deck:${MATERIALS[id].hex}"></i>${esc(DECK_LABELS[id])}</button>`).join('')}</div>
+      </div>
+      <div class="facade-pick walk-pick" role="group" aria-label="Прогулка">
+        <span class="pick-title">Прогулка — начать у</span>
+        <div class="seg">${WALK_SPOTS.map((w) => `<button data-walk="${w.id}">${esc(w.label)}</button>`).join('')}</div>
+      </div>
       <label class="check clear-view"><input type="checkbox" id="clear-view" ${this.app.settings.clearView ? 'checked' : ''}> Не заслонять постройки деревьями</label>
-      <div class="views" aria-label="Виды">${SPOTS.map((s) => `<button data-spot="${s.id}">${esc(s.label)}</button>`).join('')}<button data-walk="1">Прогулка от калитки</button><button data-inside="1">Внутри построек</button></div>
+      <div class="views" aria-label="Виды">${SPOTS.map((s) => `<button data-spot="${s.id}">${esc(s.label)}</button>`).join('')}<button data-inside="1">Внутри построек</button></div>
       <p class="site-facts">Север — вверх плана, солнце — для Всеволожска (60,0° с. ш.). Все постройки на ж/б сваях, пол на <b>0,25 м</b> выше спланированной земли. Деревья — по плану, высоты по диаметру ствола. Внутри — вертикальная имитация бруса, пол — тёмно-серый ламинат.</p>`;
     body.querySelectorAll('[data-focus]').forEach((b) => b.addEventListener('click', () => this.app.focusOn(b.dataset.focus)));
     body.querySelectorAll('[data-spot]').forEach((b) => b.addEventListener('click', () => this.app.showSpot(b.dataset.spot)));
-    body.querySelector('[data-walk]').addEventListener('click', () => this.app.setMode('walk'));
+    body.querySelectorAll('[data-walk]').forEach((b) => b.addEventListener('click', () => this.app.setMode('walk', { walk: { spot: b.dataset.walk } })));
     body.querySelector('[data-inside]').addEventListener('click', () => this.app.enterInterior(this.focus !== 'site' ? this.focus : 'guest', 0));
+    body.querySelectorAll('[data-deck]').forEach((b) => b.addEventListener('click', () => {
+      const id = b.dataset.deck;
+      if (this.state.terrace !== id) this.app.store.commit((s) => { s.terrace = id; }, `Терраса: ${DECK_LABELS[id].toLowerCase()}`);
+    }));
     body.querySelectorAll('[data-facade]').forEach((b) => b.addEventListener('click', () => {
       const id = b.dataset.facade;
       if (this.state.facade !== id) this.app.store.commit((s) => { s.facade = id; }, `Фасады: ${FACADES[id].label.toLowerCase()}`);
@@ -160,6 +177,7 @@ export class SiteUI {
   refresh() {
     this.syncSunInputs();
     document.querySelectorAll('[data-facade]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.facade === this.state.facade)));
+    document.querySelectorAll('[data-deck]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.deck === this.state.terrace)));
   }
 
   bindCamera() {
@@ -416,7 +434,7 @@ export class SiteUI {
       <ul>
         <li>Обзор: левая кнопка — вращение, колесо — масштаб, правая кнопка / Shift / два пальца — сдвиг.</li>
         <li>Клавиши: 1–4 — участок и постройки, R — общий вид, T — сверху, C — облёт, N — траектория солнца, [ и ] — время, WASD — смещение, Q/E — поворот, / — скрыть интерфейс.</li>
-        <li>Прогулка: WASD / стрелки (Shift — быстрее), мышь — взгляд (клик включает захват указателя), Esc — пауза. На сенсорном экране — джойстик и перетаскивание взгляда.</li>
+        <li>Прогулка: WASD / стрелки (Shift — бегом), мышь — взгляд (клик включает захват указателя), Esc — пауза. Кнопки «Калитка», «Гостевой дом», «Гриль-дом», «Хоз.блок» над сценой — сразу к постройке. На сенсорном экране — джойстик и перетаскивание взгляда.</li>
       </ul>
       <h3>Участок</h3>
       <p>${fmt(SITE.site.area, 0)} м² по границе плана. Рельеф — по отметкам съёмки (Балтийская система), у построек — планировка: гостевой дом ${fmt(lv.guest.floor, 2)}, гриль-дом ${fmt(lv.grill.floor, 2)}, хоз.блок ${fmt(lv.garage.floor, 2)} (чистый пол). Деревья — по плану: подпись «Б-25» — береза, ствол 25 см на высоте 1,3 м.</p>

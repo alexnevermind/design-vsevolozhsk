@@ -1,20 +1,20 @@
 {
-  "date": "2026-10-27T19:43:22.272Z",
+  "date": "2026-11-08T23:07:58.669Z",
   "three": "0.183.2",
   "site": {
     "html": {
       "path": "offline/Vsevolozhsk.html",
-      "bytes": 11864444,
-      "sha256": "8f47682d52826f49d52365e1a9b486fda975dfbe8e942036124dff0e0c1c1dea"
+      "bytes": 11924037,
+      "sha256": "ecacc74ef22d9561abdca9b8d5d8b9485800662b79dc4f832002dde379e8c2d1"
     },
     "zip": {
       "path": "artifacts/Vsevolozhsk-local.zip",
-      "bytes": 8256496,
-      "sha256": "ce29e7c212d4a7acd65773d1f79b2905c877301bdfd8cab2bdbf6799415cc967"
+      "bytes": 8274743,
+      "sha256": "55a22eee0019bbaf4706eea90106f0ec8cfd5407459c20d48918b275341197bb"
     },
     "htmlInZipIdentical": true,
     "embeddedAssets": 64,
-    "jsBytes": 1199481
+    "jsBytes": 1257791
   },
   "base": {
     "html": {
@@ -25,7 +25,7 @@
     "zip": {
       "path": "artifacts/VSEMDOM-local.zip",
       "bytes": 8228799,
-      "sha256": "398b21811f26115e027306f334f803e7355f95a8708e4b7cb26c5ba8517d6d59"
+      "sha256": "3116188f9a237a47b7f2ac7fce227814746eb0d7f440c14889320ac3a390e342"
     },
     "htmlInZipIdentical": true,
     "embeddedAssets": 64,

@@ -37,3 +37,12 @@
 .item-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .item-actions button { border: 1px solid var(--line, #e3ded3); background: #fff; border-radius: 8px; padding: 4px 9px; font-size: 12px; cursor: pointer; }
 .item-actions button[disabled] { opacity: .45; cursor: not-allowed; }
+/* Прогулка: переход к калитке и постройкам. */
+.walk-go { position: absolute; top: 116px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.walk-go button { border: 0; background: rgba(255, 255, 255, .82); padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; box-shadow: var(--shadow); cursor: pointer; }
+.walk-go button:hover { background: var(--panel-solid); color: var(--accent); }
+.walk-pick .seg { grid-template-columns: 1fr 1fr; }
+@media (max-width: 720px) { .walk-go { top: 152px; } .walk-go button { padding: 6px 9px; font-size: 11px; } }
+/* Цвет настила террасы. */
+.deck-pick .seg { grid-template-columns: 1fr 1fr; }
+.sw-deck { background: repeating-linear-gradient(90deg, var(--deck) 0 5px, color-mix(in srgb, var(--deck) 82%, #000) 5px 6px); }

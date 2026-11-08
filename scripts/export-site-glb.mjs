@@ -126,8 +126,12 @@ try {
     for (const f of app.fires) { if (f.group.parent !== app.landscape) fires.add(clean(f.group.clone(true))); }
     root.add(fires);
     const land = app.landscape.clone(true);
-    land.remove(...land.children.filter((o) => o.name === 'grass'));
+    land.remove(...land.children.filter((o) => o.name === 'grass' || o.name === 'terrace'));
     root.add(clean(land));
+    // Терраса гостевого дома с купелью — отдельной группой (цвет настила — текущий в приложении).
+    const terr = clean(app.landscape.userData.terrace.clone(true));
+    terr.name = 'terrace';
+    root.add(terr);
     root.add(clean(app.ground.clone(true)));
     // Деревья по плану: группа на дерево (tree_T01 …) — ствол с ветвями и крона с общей геометрией шаблона.
     // Ветви внутри объёмов построек (в приложении их отбрасывает шейдер) вырезаются из копии геометрии

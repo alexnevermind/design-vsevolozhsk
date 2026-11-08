@@ -131,8 +131,10 @@ export function roofPlane(G, pl, { thick = 0.28, quality = 'high', gutters = [],
     const ml = Math.hypot(...m2);
     const out3 = norm(add([0, 0, 0], [pl.A, m2[0] / ml], [pl.D, m2[1] / ml]));
     if (kind === 'eave') {
-      // Лобовая доска 200 мм (белая, слот fascia — материал наличников) под краем основы и капельник черепицы.
+      // Торец основы закрыт доской по всей толщине (перпендикулярно скату) — иначе между подшивкой и
+      // покрытием видна полость, а покрытие снизу не рисуется; ниже — лобовая доска 200 мм и капельник.
       const under = add(mid, [pl.N, -thick]);
+      box(G, 'fascia', add(mid, [pl.N, -thick / 2], [out3, 0.0125]), [L, thick + 0.02, 0.025], dir, { up: pl.N });
       box(G, 'fascia', add(under, [[0, -1, 0], 0.09], [out3, 0.012]), [L, 0.2, 0.025], dir, { up: [0, 1, 0] });
       box(G, 'roof', add(mid, [pl.N, -0.01], [out3, 0.03]), [L, 0.05, 0.008], dir, { up: [0, 1, 0] });
       if (snow) {
@@ -151,8 +153,9 @@ export function roofPlane(G, pl, { thick = 0.28, quality = 'high', gutters = [],
       }
       if (gutters.includes(i)) gutterRun(G, add(A3, [pl.N, -thick * 0.5], [out3, 0.08], [[0, 1, 0], -0.07]), add(B3, [pl.N, -thick * 0.5], [out3, 0.08], [[0, 1, 0], -0.07]));
     } else if (kind === 'rake') {
-      // Ветровая доска (белая) по торцу основы и торцевая планка (графит) по краю покрытия.
-      box(G, 'fascia', add(mid, [pl.N, -thick / 2 - 0.02], [out3, 0.012]), [L, thick + 0.18, 0.025], dir, { up: out3 });
+      // Ветровая доска (белая) встык к торцу основы — по высоте (вдоль нормали ската) от низа подшивки
+      // до покрытия, закрывает торец целиком; сверху — торцевая планка (графит) по краю покрытия.
+      box(G, 'fascia', add(mid, [pl.N, -thick / 2 - 0.01], [out3, 0.0125]), [L, thick + 0.08, 0.025], dir, { up: pl.N });
       box(G, 'roof', add(mid, [pl.N, 0.03], [out3, -0.04]), [L, 0.07, 0.12], dir, { up: pl.N });
     } else if (kind === 'wall') {
       box(G, 'roof', add(mid, [pl.N, 0.04], [out3, -0.06]), [L, 0.02, 0.14], dir, { up: pl.N });

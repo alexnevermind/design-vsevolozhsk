@@ -1,12 +1,12 @@
 {
-  "date": "2026-10-27T19:46:48.830Z",
+  "date": "2026-11-08T23:10:35.941Z",
   "environment": "Chromium 153.0.8010.12 headless, сеть отключена (context.setOffline + блокировка http/https), программный WebGL",
   "results": [
     {
       "target": "site",
       "name": "Автономный HTML загрузился без сети (file://)",
       "ok": true,
-      "note": "29 с"
+      "note": "28 с"
     },
     {
       "target": "site",
@@ -30,7 +30,7 @@
       "target": "site",
       "name": "Прогулка работает без сети",
       "ok": true,
-      "note": "0.75 м"
+      "note": "0.65 м"
     },
     {
       "target": "site",
@@ -42,7 +42,7 @@
       "target": "site",
       "name": "Ссылка автономного файла — локальный путь с состоянием",
       "ok": true,
-      "note": "file:///tmp/offline-y9iCy0/Vsevolozhsk.html?quality=low#s=1.…"
+      "note": "file:///tmp/offline-w4Z0gZ/Vsevolozhsk.html?quality=low#s=1.…"
     },
     {
       "target": "site",
@@ -60,13 +60,13 @@
       "target": "site",
       "name": "HTML из ZIP совпадает с проверенным файлом (SHA-256)",
       "ok": true,
-      "note": "8f47682d52826f49d52365e1a9b486fda975dfbe8e942036124dff0e0c1c1dea"
+      "note": "ecacc74ef22d9561abdca9b8d5d8b9485800662b79dc4f832002dde379e8c2d1"
     },
     {
       "target": "base",
       "name": "Автономный HTML загрузился без сети (file://)",
       "ok": true,
-      "note": "30 с"
+      "note": "22 с"
     },
     {
       "target": "base",
@@ -96,7 +96,7 @@
       "target": "base",
       "name": "Ссылка автономного файла — локальный путь с состоянием",
       "ok": true,
-      "note": "file:///tmp/offline-OgRQew/VSEMDOM.html?quality=low#r=1.eyJt…"
+      "note": "file:///tmp/offline-D64Osw/VSEMDOM.html?quality=low#r=1.eyJt…"
     },
     {
       "target": "base",

@@ -335,6 +335,21 @@ const features = {
   septic: { name: F.septic.name, poly: rectPts([F.septic.rect[0], F.septic.rect[1], F.septic.rect[2], F.septic.rect[3]]).map(px2m) },
   dining: { name: 'Обеденная площадка с перголой', poly: B.grill.dining.poly },
 };
+// Открытая терраса гостевого дома и ступени на западной кромке (наружу — по листу вниз).
+{
+  const T = S.TERRACE;
+  const st = T.stair;
+  const c = B.guest.at([st.at, st.edgeY]);
+  const o = B.guest.at([st.at, st.edgeY + 1000]);
+  const out = [o[0] - c[0], o[1] - c[1]];
+  const len = st.run * st.treads / 1000;
+  features.terrace = {
+    name: T.name,
+    poly: placePoly(B.guest.at, T.polygon),
+    stair: { center: c.map(r3), out: out.map(r3), width: st.width / 1000, run: st.run / 1000, treads: st.treads, foot: [r3(c[0] + out[0] * len), r3(c[1] + out[1] * len)] },
+    colors: T.colors,
+  };
+}
 const sportSides = [0, 1].map((i) => segLen(features.sport.poly[i], features.sport.poly[i + 1]));
 line('');
 line('## Площадки');
@@ -342,6 +357,13 @@ check(Math.abs(sportSides[0] - 8.0) < 0.15 && Math.abs(sportSides[1] - 4.45) < 0
 check(Math.abs(segLen(features.septic.poly[0], features.septic.poly[1]) - 3) < 0.1, `ЛОС ${fmt(segLen(features.septic.poly[0], features.septic.poly[1]))} × ${fmt(segLen(features.septic.poly[1], features.septic.poly[2]))} м`);
 for (const k of ['pond', 'firePit', 'grillZone', 'plungePool']) check(true, `${features[k].name}: центр (${fmt(features[k].center[0])}; ${fmt(features[k].center[1])}), Ø ${fmt(features[k].r * 2)} м`);
 check(true, `обеденная площадка у ЮВ грани гриль-дома ${fmt(G.dining.width / 1000, 1)} × ${fmt(G.dining.depth / 1000, 2)} м, пергола`);
+{
+  const tp = features.terrace.poly;
+  const xs = tp.map((p) => p[0]), zs = tp.map((p) => p[1]);
+  const pp = features.plungePool;
+  const inside = [0, 1, 2, 3].every((k) => pointInPolygon(pp.center[0] + Math.cos(k * Math.PI / 2) * pp.r, pp.center[1] + Math.sin(k * Math.PI / 2) * pp.r, tp));
+  check(inside, `${features.terrace.name}: ${fmt(Math.max(...xs) - Math.min(...xs))} × ${fmt(Math.max(...zs) - Math.min(...zs))} м, ${fmt(Math.abs(polygonArea(tp)), 1)} м²; купель внутри настила`);
+}
 
 // ---------- Ворота, калитка, дорожки ----------
 const cpAxisX = B.garage.at([GA.shed.rect[2] / 2, 0])[0];
@@ -364,6 +386,7 @@ const doorCenter = (b, opId, out = 1.2) => {
   return b.at([p[0] + w.out[0] * (GU.outerWall / 2 + out * 1000), p[1] + w.out[1] * (GU.outerWall / 2 + out * 1000)]).map(r3);
 };
 const named = {
+  terraceStair: features.terrace.stair.foot,
   wicket: onSouth((wicket.x0 + wicket.x1) / 2, 0.45),
   guestEntry: doorCenter(B.guest, 'GD2', 0.82),
   restDoor: doorCenter(B.guest, 'GG3', 0.82),
@@ -653,8 +676,20 @@ function inflate(polyPts, d) {
   });
 }
 for (const b of buildings) for (const f of b.footprint) svg.push(poly(inflate(f, S.PAVING.apron.width), 'apron'));
-// Обеденная площадка и пергола
+// Обеденная площадка и пергола, терраса гостевого дома
 svg.push(poly(features.dining.poly, 'deck'));
+svg.push(poly(features.terrace.poly, 'deck'));
+{
+  const tp = features.terrace.poly;
+  const st = features.terrace.stair;
+  const u = [-st.out[1], st.out[0]];
+  const run = st.run * st.treads, w = st.width / 2;
+  const c = st.center;
+  svg.push(poly([[c[0] + u[0] * w, c[1] + u[1] * w], [c[0] - u[0] * w, c[1] - u[1] * w], [c[0] - u[0] * w + st.out[0] * run, c[1] - u[1] * w + st.out[1] * run], [c[0] + u[0] * w + st.out[0] * run, c[1] + u[1] * w + st.out[1] * run]], 'deck'));
+  svg.push(text([Math.min(...tp.map((p) => p[0])) + 0.5, (Math.min(...tp.map((p) => p[1])) + Math.max(...tp.map((p) => p[1]))) / 2 - 0.6], 'терраса', 'small'));
+  // Купель встроена в настил — поверх террасы.
+  svg.push(circ(features.plungePool, 'pool'));
+}
 {
   const d = features.dining.poly;
   for (let k = 0; k <= 6; k++) { const t = 0.12 + 0.76 * k / 6; svg.push(pl([[d[0][0] + (d[3][0] - d[0][0]) * t, d[0][1] + (d[3][1] - d[0][1]) * t], [d[1][0] + (d[2][0] - d[1][0]) * t, d[1][1] + (d[2][1] - d[1][1]) * t]], 'perg')); }
